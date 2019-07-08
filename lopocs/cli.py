@@ -26,7 +26,7 @@ from lopocs.utils import compute_scale_for_cesium
 
 
 samples = {
-    'airport': 'http://www.liblas.org/samples/LAS12_Sample_withRGB_Quick_Terrain_Modeler_fixed.las',
+    'airport': 'https://github.com/PDAL/data/raw/master/liblas/LAS12_Sample_withIntensity_Quick_Terrain_Modeler.laz',
     'sthelens': 'http://www.liblas.org/samples/st-helens.las',
     'lyon': (3946, 'http://3d.oslandia.com/lyon.laz')
 }
