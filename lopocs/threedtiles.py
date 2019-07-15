@@ -121,6 +121,7 @@ cdt = np.dtype([('Red', np.uint8), ('Green', np.uint8), ('Blue', np.uint8)])
 pdt = np.dtype([('X', np.float32), ('Y', np.float32), ('Z', np.float32)])
 
 
+# Get points from the database and convert them into 3DTiles file format
 def get_points(session, box, lod, offsets, pcid, scales, schema):
     sql = sql_query(session, box, pcid, lod)
     if Config.DEBUG:
@@ -152,7 +153,11 @@ def get_points(session, box, lod, offsets, pcid, scales, schema):
     ]
 
     quantized_points = np.array(np.core.records.fromarrays(quantized_points_r.T, dtype=pdt))
+    return format_pnts(quantized_points, npoints, rgb, offset)
 
+
+# Convert the points into a 3DTiles structure (apparently to be formatted as pnts)
+def format_pnts(quantized_points, npoints, rgb, offset)
     fth = FeatureTableHeader.from_dtype(
         quantized_points.dtype, rgb.dtype, npoints
     )
