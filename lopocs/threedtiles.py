@@ -164,9 +164,9 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
 
 # Convert the points into simple PTS format
 def format_pts(quantized_points, npoints, rgb, offsets):
-    tile = 'X, Y, Z\n'
+    tile = 'X Y Z\n'
     for pt in quantized_points:
-        tile += '{0}, {1}, {2}\n'.format(pt[0], pt[1], pt[2])
+        tile += '{0} {1} {2}\n'.format(pt[0], pt[1], pt[2])
     #tile = '{0}\n'.format(quantized_points.shape)
     #tile += '{0}\n'.format(quantized_points[0])
     return [tile, npoints]
