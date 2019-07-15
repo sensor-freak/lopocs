@@ -147,7 +147,7 @@ threedtiles_read.add_argument('lod', type=int, required=True)
 
 
 @threedtiles_ns.route("/<resource>/read.pnts")
-class ThreeDTilesReadRoute(Resource):
+class ThreeDTilesReadPntsRoute(Resource):
 
     @threedtiles_ns.expect(threedtiles_read, validate=True)
     def get(self, resource):
@@ -156,5 +156,21 @@ class ThreeDTilesReadRoute(Resource):
         return ThreeDTilesRead(
             table, column,
             args.get('bounds'),
-            args.get('lod')
+            args.get('lod'),
+            'pnts'
+        )
+
+
+@threedtiles_ns.route("/<resource>/read.pts")
+class ThreeDTilesReadPtsRoute(Resource):
+
+    @threedtiles_ns.expect(threedtiles_read, validate=True)
+    def get(self, resource):
+        table, column = validate_resource(resource)
+        args = threedtiles_read.parse_args()
+        return ThreeDTilesRead(
+            table, column,
+            args.get('bounds'),
+            args.get('lod'),
+            'pts'
         )

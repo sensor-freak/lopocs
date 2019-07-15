@@ -42,7 +42,7 @@ def ThreeDTilesInfo(table, column):
     }
 
 
-def ThreeDTilesRead(table, column, bounds, lod):
+def ThreeDTilesRead(table, column, bounds, lod, format):
 
     session = Session(table, column)
     # offsets = [round(off, 2) for off in list_from_str(offsets)]
@@ -55,14 +55,14 @@ def ThreeDTilesRead(table, column, bounds, lod):
     scales = stored_patches['scales']
     offsets = stored_patches['offsets']
 
-    [tile, npoints] = get_points(session, box, lod, offsets, pcid, scales, schema)
+    [tile, npoints] = get_points(session, box, lod, offsets, pcid, scales, schema, format)
 
     if Config.DEBUG:
         tile.sync()
         print("NPOINTS: ", npoints)
 
     # build flask response
-    response = make_response(tile.to_array().tostring())
+    response = make_response(tile)
     response.headers['content-type'] = 'application/octet-stream'
     return response
 
@@ -122,7 +122,7 @@ pdt = np.dtype([('X', np.float32), ('Y', np.float32), ('Z', np.float32)])
 
 
 # Get points from the database and convert them into 3DTiles file format
-def get_points(session, box, lod, offsets, pcid, scales, schema):
+def get_points(session, box, lod, offsets, pcid, scales, schema, format):
     sql = sql_query(session, box, pcid, lod)
     if Config.DEBUG:
         print(sql)
@@ -153,11 +153,27 @@ def get_points(session, box, lod, offsets, pcid, scales, schema):
     ]
 
     quantized_points = np.array(np.core.records.fromarrays(quantized_points_r.T, dtype=pdt))
-    return format_pnts(quantized_points, npoints, rgb, offset)
+
+    results = ''
+    if format == 'pnts':
+        results = format_pnts(quantized_points, npoints, rgb, offsets)
+    if format == 'pts':
+        results = format_pts(quantized_points, npoints, rgb, offsets)
+    return results
+
+
+# Convert the points into simple PTS format
+def format_pts(quantized_points, npoints, rgb, offsets):
+    tile = 'X, Y, Z\n'
+    for pt in quantized_points:
+        tile += '{0}, {1}, {2}\n'.format(pt[0], pt[1], pt[2])
+    #tile = '{0}\n'.format(quantized_points.shape)
+    #tile += '{0}\n'.format(quantized_points[0])
+    return [tile, npoints]
 
 
 # Convert the points into a 3DTiles structure (apparently to be formatted as pnts)
-def format_pnts(quantized_points, npoints, rgb, offset)
+def format_pnts(quantized_points, npoints, rgb, offsets):
     fth = FeatureTableHeader.from_dtype(
         quantized_points.dtype, rgb.dtype, npoints
     )
@@ -180,7 +196,7 @@ def format_pnts(quantized_points, npoints, rgb, offset)
     tile.header = th
     tile.body.feature_table.header.rtc = offsets
 
-    return [tile, npoints]
+    return [tile.to_array().tostring(), npoints]
 
 
 def sql_query(session, box, pcid, lod):
