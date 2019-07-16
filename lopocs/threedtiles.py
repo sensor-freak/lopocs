@@ -123,6 +123,14 @@ pdt = np.dtype([('X', np.float32), ('Y', np.float32), ('Z', np.float32)])
 
 # Get points from the database and convert them into 3DTiles file format
 def get_points(session, box, lod, offsets, pcid, scales, schema, format):
+    print( 'session: {0}'.format(session))
+    print( 'box: {0}'.format(box))
+    print( 'lod: {0}'.format(lod))
+    print( 'offsets: {0}'.format(offsets))
+    print( 'scales: {0}'.format(scales))
+    print( 'schema: {0}'.format(schema))
+    print( 'format: {0}'.format(format))
+
     sql = sql_query(session, box, pcid, lod)
     if Config.DEBUG:
         print(sql)
@@ -130,6 +138,9 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
     pcpatch_wkb = session.query(sql)[0][0]
     points, npoints = read_uncompressed_patch(pcpatch_wkb, schema)
     fields = points.dtype.fields.keys()
+    print('Fields: {0}'.format(fields))
+    for f in fields:
+        print('{0} - {1}'.format(f, points[f][0]))
 
     if 'Red' in fields:
         if max(points['Red']) > 255:
@@ -145,14 +156,18 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
         # FIXME: compute color gradient based on elevation
         rgb_reduced = np.zeros((npoints, 3), dtype=int)
         rgb = np.array(np.core.records.fromarrays(rgb_reduced, dtype=cdt))
+    print(rgb)
 
     quantized_points_r = np.c_[
         points['X'] * scales[0],
         points['Y'] * scales[1],
         points['Z'] * scales[2]
     ]
+    print('{0}'.format(quantized_points_r))
 
     quantized_points = np.array(np.core.records.fromarrays(quantized_points_r.T, dtype=pdt))
+    print('{0}'.format(quantized_points))
+    print('{0}'.format(rgb))
 
     results = ''
     if format == 'pnts':
@@ -164,9 +179,15 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
 
 # Convert the points into simple PTS format
 def format_pts(quantized_points, npoints, rgb, offsets):
-    tile = 'X Y Z\n'
-    for pt in quantized_points:
-        tile += '{0} {1} {2}\n'.format(pt[0], pt[1], pt[2])
+    tile = '"X" "Y" "Z"\n'
+
+    for ptidx in range(npoints):
+        tile += '{0} {1} {2}\n' \
+                .format(quantized_points[ptidx][0] + offsets[0],
+                        quantized_points[ptidx][1] + offsets[1],
+                        quantized_points[ptidx][2],
+                        rgb[ptidx][0], rgb[ptidx][1], rgb[ptidx][2])
+
     #tile = '{0}\n'.format(quantized_points.shape)
     #tile += '{0}\n'.format(quantized_points[0])
     return [tile, npoints]

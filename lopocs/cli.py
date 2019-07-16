@@ -257,6 +257,7 @@ def _load(filename, table, column, work_dir, server_url, capacity, usewith, srid
         srid = re.findall('EPSG","(\d+)"', summary['srs']['wkt'])[-1]
 
     p = Proj(init='epsg:{}'.format(srid))
+    print( 'SRID: {0}, Projection: {1}'.format(srid,p)
 
     if p.is_latlong():
         # geographic
@@ -490,6 +491,7 @@ def demo(sample, work_dir, server_url, usewith, srid):
     if tmp.scheme == 'file':
         dest = tmp.path;
 
+    print('Download Link: {0}, dest: {1}, exists: {2}'.format( download_link, dest, os.path.exists(dest)))
     if not os.path.exists(dest):
         download('Downloading sample', download_link, dest)
 
