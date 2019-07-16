@@ -10,6 +10,7 @@ from zipfile import ZipFile
 from datetime import datetime
 from pathlib import Path
 from subprocess import check_call, call, check_output, CalledProcessError, DEVNULL
+from urllib import parse
 
 import click
 import requests
@@ -27,8 +28,9 @@ from lopocs.utils import compute_scale_for_cesium
 
 samples = {
     'airport': 'https://github.com/PDAL/data/raw/master/liblas/LAS12_Sample_withIntensity_Quick_Terrain_Modeler.laz',
-    'sthelens': 'http://www.liblas.org/samples/st-helens.las',
-    'lyon': (3946, 'http://3d.oslandia.com/lyon.laz')
+    'sthelens': 'https://github.com/PDAL/data/raw/master/liblas/MtStHelens.laz',
+    'lyon': (3946, 'http://3d.oslandia.com/lyon.laz'),
+    'kit_cn': ( 31467, 'file:///data/KIT-CN-Komplett.las')
 }
 
 PDAL_PIPELINE = """
@@ -468,11 +470,11 @@ def create_cesium_page(work_dir, tablename, column):
 @click.option('--server-url', type=str, help="server url for lopocs", default="http://localhost:5000")
 @click.option('--potree', 'usewith', help="load data for using with greyhound/potree", flag_value='potree')
 @click.option('--cesium', 'usewith', help="load data for using with 3dtiles/cesium ", default=True, flag_value='cesium')
-def demo(sample, work_dir, server_url, usewith):
+@click.option('--srid', help="set Spatial Reference Identifier (EPSG code) for the source file", default=0, type=int)
+def demo(sample, work_dir, server_url, usewith, srid):
     '''
     download sample lidar data, load it into pgpointcloud
     '''
-    srid = None
     if isinstance(samples[sample], (list, tuple)):
         # srid given
         srid = samples[sample][0]
@@ -484,11 +486,15 @@ def demo(sample, work_dir, server_url, usewith):
     dest = os.path.join(work_dir, filepath.name)
     ok()
 
+    tmp = parse.urlparse(download_link)
+    if tmp.scheme == 'file':
+        dest = tmp.path;
+
     if not os.path.exists(dest):
         download('Downloading sample', download_link, dest)
 
     # now load data
-    if srid:
+    if srid & srid!=0:
         _load(dest, sample, 'points', work_dir, server_url, 400, usewith, srid=srid)
     else:
         _load(dest, sample, 'points', work_dir, server_url, 400, usewith)
