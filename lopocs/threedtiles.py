@@ -17,7 +17,7 @@ from .conf import Config
 from .database import Session
 
 LOD_MIN = 0
-LOD_MAX = 5
+LOD_MAX = 6
 LOD_LEN = LOD_MAX + 1 - LOD_MIN
 
 
@@ -137,6 +137,7 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
 
     pcpatch_wkb = session.query(sql)[0][0]
     points, npoints = read_uncompressed_patch(pcpatch_wkb, schema)
+    print( 'uncompressed patch lod {1}: {0} pts'.format(npoints, lod))
     fields = points.dtype.fields.keys()
     print('Fields: {0}'.format(fields))
     for f in fields:
@@ -156,18 +157,18 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
         # FIXME: compute color gradient based on elevation
         rgb_reduced = np.zeros((npoints, 3), dtype=int)
         rgb = np.array(np.core.records.fromarrays(rgb_reduced, dtype=cdt))
-    print(rgb)
+    #print(rgb)
 
     quantized_points_r = np.c_[
         points['X'] * scales[0],
         points['Y'] * scales[1],
         points['Z'] * scales[2]
     ]
-    print('{0}'.format(quantized_points_r))
+    #print('{0}'.format(quantized_points_r))
 
     quantized_points = np.array(np.core.records.fromarrays(quantized_points_r.T, dtype=pdt))
-    print('{0}'.format(quantized_points))
-    print('{0}'.format(rgb))
+    #print('{0}'.format(quantized_points))
+    #print('{0}'.format(rgb))
 
     results = ''
     if format == 'pnts':
@@ -185,7 +186,7 @@ def format_pts(quantized_points, npoints, rgb, offsets):
         tile += '{0} {1} {2}\n' \
                 .format(quantized_points[ptidx][0] + offsets[0],
                         quantized_points[ptidx][1] + offsets[1],
-                        quantized_points[ptidx][2],
+                        quantized_points[ptidx][2] + offsets[2],
                         rgb[ptidx][0], rgb[ptidx][1], rgb[ptidx][2])
 
     #tile = '{0}\n'.format(quantized_points.shape)

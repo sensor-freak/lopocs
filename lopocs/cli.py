@@ -205,7 +205,8 @@ def check():
 @click.option('--server-url', type=str, help="server url for lopocs", default="http://localhost:5000")
 @click.option('--capacity', type=int, default=400, help="number of points in a pcpatch")
 @click.option('--potree', 'usewith', help="load data for use with greyhound/potree", flag_value='potree')
-@click.option('--cesium', 'usewith', help="load data for use with use 3dtiles/cesium ", default=True, flag_value='cesium')
+@click.option('--cesium', 'usewith', help="load data for use with use 3dtiles/cesium ", flag_value='cesium')
+@click.option('--native', 'usewith', help="load data for using with 3dtiles/native SRS ", default=True, flag_value='native')
 @click.option('--srid', help="set Spatial Reference Identifier (EPSG code) for the source file", default=0, type=int)
 @click.argument('filename', type=click.Path(exists=True))
 @cli.command()
@@ -257,7 +258,7 @@ def _load(filename, table, column, work_dir, server_url, capacity, usewith, srid
         srid = re.findall('EPSG","(\d+)"', summary['srs']['wkt'])[-1]
 
     p = Proj(init='epsg:{}'.format(srid))
-    print( 'SRID: {0}, Projection: {1}'.format(srid,p)
+    print( 'SRID: {0}, Projection: {1}'.format(srid,p))
 
     if p.is_latlong():
         # geographic
@@ -386,6 +387,18 @@ def _load(filename, table, column, work_dir, server_url, capacity, usewith, srid
         ok()
         create_cesium_page(str(work_dir.resolve()), table, column)
 
+    if usewith == 'native':
+        pending("Building 3Dtiles tileset")
+        hcy = threedtiles.build_hierarchy_from_pg(
+            lpsession, server_url, bbox
+        )
+
+        tileset = os.path.join(str(work_dir.resolve()), 'tileset-{}.{}.json'.format(table, column))
+
+        with io.open(tileset, 'wb') as out:
+            out.write(hcy.encode())
+        ok()
+
 
 @click.option('--table', required=True, help='table name to store pointclouds, considered in public schema if no prefix provided')
 @click.option('--column', help="column name to store patches", default="points", type=str)
@@ -470,7 +483,8 @@ def create_cesium_page(work_dir, tablename, column):
 @click.option('--work-dir', type=click.Path(exists=True), required=True, help="working directory where sample files will be saved")
 @click.option('--server-url', type=str, help="server url for lopocs", default="http://localhost:5000")
 @click.option('--potree', 'usewith', help="load data for using with greyhound/potree", flag_value='potree')
-@click.option('--cesium', 'usewith', help="load data for using with 3dtiles/cesium ", default=True, flag_value='cesium')
+@click.option('--cesium', 'usewith', help="load data for using with 3dtiles/cesium ", flag_value='cesium')
+@click.option('--native', 'usewith', help="load data for using with 3dtiles/native SRS ", default=True, flag_value='native')
 @click.option('--srid', help="set Spatial Reference Identifier (EPSG code) for the source file", default=0, type=int)
 def demo(sample, work_dir, server_url, usewith, srid):
     '''
