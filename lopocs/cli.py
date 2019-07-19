@@ -30,7 +30,10 @@ samples = {
     'airport': 'https://github.com/PDAL/data/raw/master/liblas/LAS12_Sample_withIntensity_Quick_Terrain_Modeler.laz',
     'sthelens': 'https://github.com/PDAL/data/raw/master/liblas/MtStHelens.laz',
     'lyon': (3946, 'http://3d.oslandia.com/lyon.laz'),
-    'kit_cn': ( 31467, 'file:///data/KIT-CN-Komplett.las')
+    'kit_cn': ( 31467, 'file:///data/KIT-CN-Komplett.las'),
+    'ettenheim': ( 31467, 'file:///data/Ettenheimmuenster.las'),
+    'kit1': ( 31467, 'file:///data/Ausschnitt1-Komplett-Cloud-H.txt'),
+    'kit2': ( 31467, 'file:///data/Ausschnitt2-Komplett-Cloud-H.txt')
 }
 
 PDAL_PIPELINE = """
@@ -39,6 +42,7 @@ PDAL_PIPELINE = """
     {{
         "type": "readers.{extension}",
         "filename":"{realfilename}"
+        {header}
     }},
     {{
         "type": "filters.chipper",
@@ -225,12 +229,19 @@ def _load(filename, table, column, work_dir, server_url, capacity, usewith, srid
     extension = filename.suffix[1:].lower()
     # laz uses las reader in PDAL
     extension = extension if extension != 'laz' else 'las'
+    # txt uses text reader in PDAL
+    extension = extension if extension != 'txt' else 'text'
     basename = filename.stem
     basedir = filename.parent
 
     pending('Creating metadata table')
     Session.create_pointcloud_lopocs_table()
     ok()
+
+    # When using text files assume they have no header, so specify a header here
+    header = ""
+    if extension == "text":
+        header = ', "header": "X Y Z Red Green Blue"'
 
     pending('Reading summary with PDAL')
     json_path = os.path.join(
