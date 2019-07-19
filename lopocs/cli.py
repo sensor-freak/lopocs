@@ -278,9 +278,15 @@ def _load(filename, table, column, work_dir, server_url, capacity, usewith, srid
         # projection or geocentric
         scale_x, scale_y, scale_z = (0.01, 0.01, 0.01)
 
-    offset_x = summary['bounds']['minx'] + (summary['bounds']['maxx'] - summary['bounds']['minx']) / 2
-    offset_y = summary['bounds']['miny'] + (summary['bounds']['maxy'] - summary['bounds']['miny']) / 2
-    offset_z = summary['bounds']['minz'] + (summary['bounds']['maxz'] - summary['bounds']['minz']) / 2
+    if 'bounds' in summary:
+        # A bounding box is given in the summary, so apply some scaling...
+        offset_x = summary['bounds']['minx'] + (summary['bounds']['maxx'] - summary['bounds']['minx']) / 2
+        offset_y = summary['bounds']['miny'] + (summary['bounds']['maxy'] - summary['bounds']['miny']) / 2
+        offset_z = summary['bounds']['minz'] + (summary['bounds']['maxz'] - summary['bounds']['minz']) / 2
+    else:
+        # The summary has no bounding box, so do not sclae at all
+        offset_x, offset_y, offset_z = (0, 0, 0)
+        scale_x, scale_y, scale_z = (1, 1, 1)
 
     reproject = ""
 
