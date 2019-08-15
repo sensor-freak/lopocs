@@ -16,8 +16,11 @@ from .utils import (
 from .conf import Config
 from .database import Session
 
+# These are the LoD levels to be generated when creating the tileset data
 LOD_MIN = 0
 LOD_MAX = 6
+
+# This value is used to calculate the LoD level at which all points from a patch are returned
 LOD_LEN = LOD_MAX + 1 - LOD_MIN
 
 
@@ -247,7 +250,7 @@ def sql_query(session, box, pcid, lod):
     else:
         # FIXME: may skip some points if patch_size/lod_len is decimal
         # we need to fix either here or at loading with the patch_size and lod bounds
-        range_min = lod * int(patch_size / LOD_LEN) + 1
+        range_min = 1 #lod * int(patch_size / LOD_LEN) + 1
         range_max = (lod + 1) * int(patch_size / LOD_LEN)
 
     # build the sql query
