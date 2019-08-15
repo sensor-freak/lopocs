@@ -11,7 +11,7 @@ from py3dtiles.feature_table import (
 from py3dtiles.pnts import PntsBody, PntsHeader, Pnts
 
 from .utils import (
-    read_uncompressed_patch, boundingbox_to_polygon, list_from_str, patch_numpoints
+    read_uncompressed_patch, boundingbox_to_polygon, list_from_str, patch_numpoints, pairwise
 )
 from .conf import Config
 from .database import Session
@@ -367,25 +367,32 @@ def split_bbox(bbox):
     width = bbox[3] - bbox[0]
     length = bbox[4] - bbox[1]
     height = bbox[5] - bbox[2]
+    size = max( width, length, height)
+    print( "{} / {} / {} / {}".format( width, length, height, size))
 
-    up = bbox[5]
-    middle = up - height / 2
-    down = bbox[2]
+    if width < size/2:
+        xrange = [bbox[0], bbox[3]]
+    else:
+        xrange = [bbox[0], bbox[0] + width/2, bbox[3]]
 
-    x = bbox[0]
-    y = bbox[1]
+    if length < size/2:
+        yrange = [bbox[1], bbox[4]]
+    else:
+        yrange = [bbox[1], bbox[1] + length/2, bbox[4]]
 
-    bbox_nwd = [x, y + length / 2, down, x + width / 2, y + length, middle]
-    bbox_nwu = [x, y + length / 2, middle, x + width / 2, y + length, up]
-    bbox_ned = [x + width / 2, y + length / 2, down, x + width, y + length, middle]
-    bbox_neu = [x + width / 2, y + length / 2, middle, x + width, y + length, up]
-    bbox_swd = [x, y, down, x + width / 2, y + length / 2, middle]
-    bbox_swu = [x, y, middle, x + width / 2, y + length / 2, up]
-    bbox_sed = [x + width / 2, y, down, x + width, y + length / 2, middle]
-    bbox_seu = [x + width / 2, y, middle, x + width, y + length / 2, up]
+    if height < size/2:
+        zrange = [bbox[2], bbox[5]]
+    else:
+        zrange = [bbox[2], bbox[2] + height/2, bbox[5]]
 
-    return [bbox_nwd, bbox_nwu, bbox_ned, bbox_neu, bbox_swd, bbox_swu,
-            bbox_sed, bbox_seu]
+    bboxes = []
+    for x1, x2 in pairwise(xrange):
+        for y1, y2 in pairwise(yrange):
+            for z1, z2 in pairwise(zrange):
+                bboxes.append( [ x1, y1, z1, x2, y2, z2 ])
+
+    print(bboxes)
+    return bboxes
 
 
 def children(session, baseurl, offsets, bbox, lod, pcid, err):

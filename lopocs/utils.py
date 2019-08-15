@@ -5,6 +5,7 @@ from struct import pack, unpack
 from binascii import unhexlify
 import os
 import decimal
+from itertools import tee
 
 import numpy as np
 from lazperf import buildNumpyDescription, Decompressor
@@ -184,3 +185,10 @@ def patch_numpoints(pcpatch_wkb):
     '''
     npoints_hexa = pcpatch_wkb[18:26]
     return unpack("I", unhexlify(npoints_hexa))[0]
+
+
+def pairwise(iterable):
+    "s -> (s0,s1), (s1,s2), (s2, s3), ..."
+    a, b = tee(iterable)
+    next(b, None)
+    return zip(a, b)
