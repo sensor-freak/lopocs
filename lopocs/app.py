@@ -2,7 +2,7 @@
 from flask_restplus import Api, Resource, reqparse
 
 from .greyhound import GreyhoundInfo, GreyhoundRead, GreyhoundHierarchy
-from .threedtiles import ThreeDTilesInfo, ThreeDTilesRead
+from .threedtiles import ThreeDTilesInfo, ThreeDTilesRead, ThreeDTilesResources
 from .database import Session
 
 api = Api(
@@ -131,6 +131,13 @@ class Hierarchy(Resource):
 
 # 3Dtiles namespace
 threedtiles_ns = api.namespace('3dtiles', description='3DTiles format')
+
+
+@threedtiles_ns.route("/resources")
+class ThreeDTilesResourcesRoute(Resource):
+
+    def get(self):
+        return ThreeDTilesResources()
 
 
 @threedtiles_ns.route("/<resource>/info")

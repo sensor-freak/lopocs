@@ -21,6 +21,19 @@ LOD_MAX = 6
 LOD_LEN = LOD_MAX + 1 - LOD_MIN
 
 
+def ThreeDTilesResources():
+
+    """List available resources
+    """
+    Session.clear_catalog()
+    Session.fill_catalog()
+    resp = [
+        key[0] + '.' + key[1]
+        for key, values in Session.catalog.items()
+    ]
+    return resp
+
+
 def ThreeDTilesInfo(table, column):
 
     session = Session(table, column)
