@@ -71,7 +71,7 @@ def ThreeDTilesRead(table, column, bounds, lod, format):
     [tile, npoints] = get_points(session, box, lod, offsets, pcid, scales, schema, format)
 
     if Config.DEBUG:
-        tile.sync()
+        #tile.sync()
         print("NPOINTS: ", npoints)
 
     # build flask response
