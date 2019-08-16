@@ -19,7 +19,7 @@ from pyproj import Proj, transform
 
 from lopocs import __version__
 from lopocs import create_app, greyhound, threedtiles
-from lopocs.database import Session
+from lopocs.database import Session, LopocsException
 from lopocs.potreeschema import potree_schema
 from lopocs.potreeschema import potree_page
 from lopocs.cesium import cesium_page
@@ -60,7 +60,7 @@ PDAL_PIPELINE = """
         "table":"{tab}",
         "compression":"none",
         "srid":"{srid}",
-        "overwrite":"true",
+        "overwrite":"{overwrite}",
         "column": "{column}",
         "scale_x": "{scale_x}",
         "scale_y": "{scale_y}",
@@ -206,20 +206,20 @@ def check():
 @click.option('--table', required=True, help='table name to store pointclouds, considered in public schema if no prefix provided')
 @click.option('--column', help="column name to store patches", default="points", type=str)
 @click.option('--work-dir', type=click.Path(exists=True), required=True, help="working directory where temporary files will be saved")
-@click.option('--server-url', type=str, help="server url for lopocs", default="http://localhost:5000")
 @click.option('--capacity', type=int, default=400, help="number of points in a pcpatch")
 @click.option('--potree', 'usewith', help="load data for use with greyhound/potree", flag_value='potree')
 @click.option('--cesium', 'usewith', help="load data for use with 3dtiles/cesium (data will be re-projected)", flag_value='cesium')
 @click.option('--native', 'usewith', help="load data for use with 3dtiles/native SRS (no re-projection)", default=True, flag_value='native')
 @click.option('--srid', help="set Spatial Reference Identifier (EPSG code) for the source file", default=0, type=int)
+@click.option('--data-mode', help="target column overwrite behaviour when target column exists", default='fail', type=click.Choice(['overwrite', 'append', 'fail']))
 @click.argument('filename', type=click.Path(exists=True))
 @cli.command()
-def load(filename, table, column, work_dir, server_url, capacity, usewith, srid):
+def load(filename, table, column, work_dir, capacity, usewith, srid, data_mode):
     '''load pointclouds data using pdal and add metadata needed by lopocs'''
-    _load(filename, table, column, work_dir, server_url, capacity, usewith, srid)
+    _load(filename, table, column, work_dir, capacity, usewith, srid, data_mode)
 
 
-def _load(filename, table, column, work_dir, server_url, capacity, usewith, srid=0):
+def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mode='fail'):
     '''load pointclouds data using pdal and add metadata needed by lopocs'''
     # intialize flask application
     app = create_app()
@@ -241,17 +241,30 @@ def _load(filename, table, column, work_dir, server_url, capacity, usewith, srid
     # When using text files assume they have no header, so specify a header here
     # (These local variable is used to prepare PDAL_PIPELINE below!)
     header = ""
-    if extension == "text":
+    if extension == 'text':
         header = ', "header": "X Y Z Red Green Blue"'
+
+    # tablename should be always prefixed
+    if '.' not in table:
+        table = 'public.{}'.format(table)
+
+    # Check if the target table already contains some values
+    overwrite = 'false'
+    try:
+        numpoints = Session(table, column).numpoints
+    except LopocsException as e:
+        pass
+    if 'numpoints' in locals():
+        if numpoints > 0:
+            if data_mode == 'fail':
+                fatal('The target column exists and contains data, specify data-mode to override')
+            if data_mode == 'overwrite':
+                overwrite = 'true'
 
     pending('Reading summary with PDAL')
     json_path = os.path.join(
         str(work_dir.resolve()),
         '{basename}_{table}_pipeline.json'.format(**locals()))
-
-    # tablename should be always prefixed
-    if '.' not in table:
-        table = 'public.{}'.format(table)
 
     cmd = "pdal info --summary {}".format(filename)
     try:
@@ -345,10 +358,10 @@ def _load(filename, table, column, work_dir, server_url, capacity, usewith, srid
 
     pending("Creating indexes")
     Session.execute("""
-        create index on {table} using gist(pc_envelopegeometry({column}));
-        alter table {table} add column morton bigint;
+        create index if not exists env_idx on {table} using gist(pc_envelopegeometry({column}));
+        alter table {table} add column if not exists morton bigint;
         select Morton_Update('{table}', '{column}', 'morton', 128, TRUE);
-        create index on {table}(morton);
+        create index if not exists morton_idx on {table}(morton);
     """.format(**locals()))
     ok()
 
@@ -357,7 +370,6 @@ def _load(filename, table, column, work_dir, server_url, capacity, usewith, srid
         table, column, srid, scale_x, scale_y, scale_z,
         offset_x, offset_y, offset_z
     )
-    lpsession = Session(table, column)
     ok()
 
 
@@ -518,9 +530,9 @@ def demo(sample, work_dir, server_url, usewith, srid):
 
     # now load data
     if srid & srid!=0:
-        _load(dest, sample, 'points', work_dir, server_url, 400, usewith, srid=srid)
+        _load(dest, sample, 'points', work_dir, 400, usewith, srid=srid)
     else:
-        _load(dest, sample, 'points', work_dir, server_url, 400, usewith)
+        _load(dest, sample, 'points', work_dir, 400, usewith)
         
     # build the tileset file
     tileset(sample, 'points', server_url, work_dir, usewith)
