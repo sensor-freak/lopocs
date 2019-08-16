@@ -209,8 +209,8 @@ def check():
 @click.option('--server-url', type=str, help="server url for lopocs", default="http://localhost:5000")
 @click.option('--capacity', type=int, default=400, help="number of points in a pcpatch")
 @click.option('--potree', 'usewith', help="load data for use with greyhound/potree", flag_value='potree')
-@click.option('--cesium', 'usewith', help="load data for use with use 3dtiles/cesium ", flag_value='cesium')
-@click.option('--native', 'usewith', help="load data for using with 3dtiles/native SRS ", default=True, flag_value='native')
+@click.option('--cesium', 'usewith', help="load data for use with 3dtiles/cesium (data will be re-projected)", flag_value='cesium')
+@click.option('--native', 'usewith', help="load data for use with 3dtiles/native SRS (no re-projection)", default=True, flag_value='native')
 @click.option('--srid', help="set Spatial Reference Identifier (EPSG code) for the source file", default=0, type=int)
 @click.argument('filename', type=click.Path(exists=True))
 @cli.command()
@@ -239,6 +239,7 @@ def _load(filename, table, column, work_dir, server_url, capacity, usewith, srid
     ok()
 
     # When using text files assume they have no header, so specify a header here
+    # (These local variable is used to prepare PDAL_PIPELINE below!)
     header = ""
     if extension == "text":
         header = ', "header": "X Y Z Red Green Blue"'
@@ -284,7 +285,7 @@ def _load(filename, table, column, work_dir, server_url, capacity, usewith, srid
         offset_y = summary['bounds']['miny'] + (summary['bounds']['maxy'] - summary['bounds']['miny']) / 2
         offset_z = summary['bounds']['minz'] + (summary['bounds']['maxz'] - summary['bounds']['minz']) / 2
     else:
-        # The summary has no bounding box, so do not sclae at all
+        # The summary has no bounding box, so do not scale at all
         offset_x, offset_y, offset_z = (0, 0, 0)
         scale_x, scale_y, scale_z = (1, 1, 1)
 
@@ -359,7 +360,30 @@ def _load(filename, table, column, work_dir, server_url, capacity, usewith, srid
     lpsession = Session(table, column)
     ok()
 
-    # retrieve boundingbox
+
+@click.option('--table', required=True, help='table name to store pointclouds, considered in public schema if no prefix provided')
+@click.option('--column', help="column name to store patches", default="points", type=str)
+@click.option('--work-dir', type=click.Path(exists=True), required=True, help="working directory where temporary files will be saved")
+@click.option('--server-url', type=str, help="server url for lopocs", default="http://localhost:5000")
+@click.option('--potree', 'usewith', help="build tileset for use with greyhound/potree", flag_value='potree')
+@click.option('--cesium', 'usewith', help="build tileset for use with 3dtiles/cesium ", flag_value='cesium')
+@click.option('--native', 'usewith', help="build tileset for use with 3dtiles/native SRS ", default=True, flag_value='native')
+@cli.command()
+def tileset(table, column, server_url, work_dir, usewith):
+    """
+    (Re)build a tileset.json for a given table
+    """
+    # intialize flask application
+    create_app()
+
+    work_dir = Path(work_dir)
+
+    if '.' not in table:
+        table = 'public.{}'.format(table)
+
+    lpsession = Session(table, column)
+
+    # initialize range for level of details
     fullbbox = lpsession.boundingbox
     bbox = [
         fullbbox['xmin'], fullbbox['ymin'], fullbbox['zmin'],
@@ -392,65 +416,31 @@ def _load(filename, table, column, work_dir, server_url, capacity, usewith, srid
         create_potree_page(str(work_dir.resolve()), server_url, table, column)
 
     if usewith == 'cesium':
-        pending("Building 3Dtiles tileset")
+        pending('Building tileset from database')
         hcy = threedtiles.build_hierarchy_from_pg(
             lpsession, server_url, bbox
         )
+        ok()
 
         tileset = os.path.join(str(work_dir.resolve()), 'tileset-{}.{}.json'.format(table, column))
-
+        pending('Writing tileset to disk')
         with io.open(tileset, 'wb') as out:
             out.write(hcy.encode())
         ok()
         create_cesium_page(str(work_dir.resolve()), table, column)
 
     if usewith == 'native':
-        pending("Building 3Dtiles tileset")
+        pending("Building 3Dtiles tileset (native)")
         hcy = threedtiles.build_hierarchy_from_pg(
             lpsession, server_url, bbox
         )
+        ok()
 
         tileset = os.path.join(str(work_dir.resolve()), 'tileset-{}.{}.json'.format(table, column))
-
+        pending('Writing tileset to disk')
         with io.open(tileset, 'wb') as out:
             out.write(hcy.encode())
         ok()
-
-
-@click.option('--table', required=True, help='table name to store pointclouds, considered in public schema if no prefix provided')
-@click.option('--column', help="column name to store patches", default="points", type=str)
-@click.option('--work-dir', type=click.Path(exists=True), required=True, help="working directory where temporary files will be saved")
-@click.option('--server-url', type=str, help="server url for lopocs", default="http://localhost:5000")
-@cli.command()
-def tileset(table, column, server_url, work_dir):
-    """
-    (Re)build a tileset.json for a given table
-    """
-    # intialize flask application
-    create_app()
-
-    work_dir = Path(work_dir)
-
-    if '.' not in table:
-        table = 'public.{}'.format(table)
-
-    lpsession = Session(table, column)
-    # initialize range for level of details
-    fullbbox = lpsession.boundingbox
-    bbox = [
-        fullbbox['xmin'], fullbbox['ymin'], fullbbox['zmin'],
-        fullbbox['xmax'], fullbbox['ymax'], fullbbox['zmax']
-    ]
-    pending('Building tileset from database')
-    hcy = threedtiles.build_hierarchy_from_pg(
-        lpsession, server_url, bbox
-    )
-    ok()
-    tileset = os.path.join(str(work_dir.resolve()), 'tileset-{}.{}.json'.format(table, column))
-    pending('Writing tileset to disk')
-    with io.open(tileset, 'wb') as out:
-        out.write(hcy.encode())
-    ok()
 
 
 def create_potree_page(work_dir, server_url, tablename, column):
@@ -531,6 +521,9 @@ def demo(sample, work_dir, server_url, usewith, srid):
         _load(dest, sample, 'points', work_dir, server_url, 400, usewith, srid=srid)
     else:
         _load(dest, sample, 'points', work_dir, server_url, 400, usewith)
+        
+    # build the tileset file
+    tileset(sample, 'points', server_url, work_dir, usewith)
 
     click.echo(
         'Now you can test lopocs server by executing "lopocs serve"'
