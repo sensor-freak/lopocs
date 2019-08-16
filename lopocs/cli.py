@@ -344,9 +344,9 @@ def _load(filename, table, column, work_dir, server_url, capacity, usewith, srid
 
     pending("Creating indexes")
     Session.execute("""
-        create index on {table} using gist(pc_envelopegeometry(points));
+        create index on {table} using gist(pc_envelopegeometry({column}));
         alter table {table} add column morton bigint;
-        select Morton_Update('{table}', 'points', 'morton', 128, TRUE);
+        select Morton_Update('{table}', '{column}', 'morton', 128, TRUE);
         create index on {table}(morton);
     """.format(**locals()))
     ok()
