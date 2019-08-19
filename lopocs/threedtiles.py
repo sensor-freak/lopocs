@@ -152,6 +152,9 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
         print(sql)
 
     pcpatch_wkb = session.query(sql)[0][0]
+    if not pcpatch_wkb:
+        return ['', 0]
+
     points, npoints = read_uncompressed_patch(pcpatch_wkb, schema)
     print( 'uncompressed patch lod {1}: {0} pts'.format(npoints, lod))
     fields = points.dtype.fields.keys()
