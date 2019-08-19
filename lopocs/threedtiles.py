@@ -159,10 +159,8 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
     print( 'uncompressed patch lod {1}: {0} pts'.format(npoints, lod))
     fields = points.dtype.fields.keys()
     print('Fields: {0}'.format(fields))
-    for f in fields:
-        print('{0} - {1}'.format(f, points[f][0]))
 
-    if 'Red' in fields:
+    if 'Red' in fields & 'Green' in fields & 'Blue' in fields:
         if max(points['Red']) > 255:
             # normalize
             rgb_reduced = np.c_[points['Red'] % 255, points['Green'] % 255, points['Blue'] % 255]
@@ -193,23 +191,26 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
     if format == 'pnts':
         results = format_pnts(quantized_points, npoints, rgb, offsets)
     if format == 'pts':
-        results = format_pts(quantized_points, npoints, rgb, offsets)
+        results = format_pts(quantized_points, npoints, rgb, offsets, points, fields)
     return results
 
 
 # Convert the points into simple PTS format
-def format_pts(quantized_points, npoints, rgb, offsets):
-    tile = '"X" "Y" "Z"\n'
+def format_pts(quantized_points, npoints, rgb, offsets, points, fields):
+    header1 = ['X', 'Y', 'Z', 'Red', 'Green', 'Blue']
+    header2 = [fname for fname in fields if (fname not in header1)]
+    tile = '"' + '" "'.join(header1 + header2) + '"\n'
 
     for ptidx in range(npoints):
-        tile += '{0} {1} {2}\n' \
+        tile += '{0} {1} {2} {3} {4} {5}' \
                 .format(quantized_points[ptidx][0] + offsets[0],
                         quantized_points[ptidx][1] + offsets[1],
                         quantized_points[ptidx][2] + offsets[2],
                         rgb[ptidx][0], rgb[ptidx][1], rgb[ptidx][2])
+        for f in header2:
+            tile += ' {}'.format( points[f][ptidx])
+        tile += '\n'
 
-    #tile = '{0}\n'.format(quantized_points.shape)
-    #tile += '{0}\n'.format(quantized_points[0])
     return [tile, npoints]
 
 
