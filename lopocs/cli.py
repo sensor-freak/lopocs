@@ -40,7 +40,7 @@ PDAL_PIPELINE = """
 {{
 "pipeline": [
     {{
-        "type": "readers.{extension}",
+        "type": "{data_reader}",
         "filename":"{realfilename}"
         {header}
     }},
@@ -212,14 +212,16 @@ def check():
 @click.option('--native', 'usewith', help="load data for use with 3dtiles/native SRS (no re-projection)", default=True, flag_value='native')
 @click.option('--srid', help="set Spatial Reference Identifier (EPSG code) for the source file", default=0, type=int)
 @click.option('--data-mode', help="target column overwrite behaviour when target column exists", default='fail', type=click.Choice(['overwrite', 'append', 'fail']))
+@click.option('--data-header', help="Data header containing additional arguments for the PDAL reader", type=str)
+@click.option('--data-reader', help="The PDAL driver to be used for reading the input file (e.g. readers.text)", type=str)
 @click.argument('filename', type=click.Path(exists=True))
 @cli.command()
-def load(filename, table, column, work_dir, capacity, usewith, srid, data_mode):
+def load(filename, table, column, work_dir, capacity, usewith, srid, data_mode, data_header, data_reader):
     '''load pointclouds data using pdal and add metadata needed by lopocs'''
-    _load(filename, table, column, work_dir, capacity, usewith, srid, data_mode)
+    _load(filename, table, column, work_dir, capacity, usewith, srid, data_mode, data_header, data_reader)
 
 
-def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mode='fail'):
+def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mode='fail', data_header='', data_reader=''):
     '''load pointclouds data using pdal and add metadata needed by lopocs'''
     # intialize flask application
     app = create_app()
@@ -240,9 +242,12 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
 
     # When using text files assume they have no header, so specify a header here
     # (These local variable is used to prepare PDAL_PIPELINE below!)
-    header = ""
-    if extension == 'text':
-        header = ', "header": "X Y Z Red Green Blue"'
+    header = ', "header": "{}"'.format(data_header) if data_header != '' else ''
+#    if extension == 'text':
+#        header = ', "header": "X Y Z Red Green Blue"'
+
+    # Prepare the reader to be used
+    data_reader = data_reader if data_reader != '' else "readers.{}".format(extension)
 
     # tablename should be always prefixed
     if '.' not in table:
@@ -266,14 +271,16 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
         str(work_dir.resolve()),
         '{basename}_{table}_pipeline.json'.format(**locals()))
 
-    cmd = "pdal info --summary {}".format(filename)
+    # Try to generate the summary. This might fail, epsecially for txt files
+    data_reader_summary = ("--driver " + str(data_reader)) if data_reader else ''
+    cmd = "pdal info {1} --summary {0}".format(filename, data_reader_summary)
     try:
         output = check_output(shlex.split(cmd))
+        summary = json.loads(output.decode())['summary']
+        ok()
     except CalledProcessError as e:
-        fatal(e)
-
-    summary = json.loads(output.decode())['summary']
-    ok()
+        ko(str(e))
+        summary = []
 
     if 'srs' not in summary and not srid:
         fatal('Unable to find the spatial reference system, please provide a SRID with option --srid')
