@@ -139,7 +139,10 @@ def list_from_str(list_str):
     Transform a string ['[', '1', '.', '5', ',', '2', ',', '3', ']']
     to a list [1,2,3]
     """
-    return [float(val) for val in list_str[1:-1].split(',')]
+    str = list_str.replace('[', ' ').replace(']', ' ') \
+                  .replace('{', ' ').replace('}', ' ') \
+                  .replace('(', ' ').replace(')', ' ')
+    return [float(val) for val in list_str.split(',')]
 
 
 def boundingbox_to_polygon(box):

@@ -153,6 +153,7 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
 
     pcpatch_wkb = session.query(sql)[0][0]
     if not pcpatch_wkb:
+        # return an empy tile set if the query result is empty
         return ['', 0]
 
     points, npoints = read_uncompressed_patch(pcpatch_wkb, schema)
@@ -160,7 +161,7 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
     fields = points.dtype.fields.keys()
     print('Fields: {0}'.format(fields))
 
-    if 'Red' in fields & 'Green' in fields & 'Blue' in fields:
+    if ('Red' in fields) & ('Green' in fields) & ('Blue' in fields):
         if max(points['Red']) > 255:
             # normalize
             rgb_reduced = np.c_[points['Red'] % 255, points['Green'] % 255, points['Blue'] % 255]
@@ -388,7 +389,6 @@ def split_bbox(bbox):
     length = bbox[4] - bbox[1]
     height = bbox[5] - bbox[2]
     size = max( width, length, height)
-    print( "{} / {} / {} / {}".format( width, length, height, size))
 
     if width < size/2:
         xrange = [bbox[0], bbox[3]]
@@ -411,7 +411,6 @@ def split_bbox(bbox):
             for z1, z2 in pairwise(zrange):
                 bboxes.append( [ x1, y1, z1, x2, y2, z2 ])
 
-    print(bboxes)
     return bboxes
 
 
