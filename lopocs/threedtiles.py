@@ -255,8 +255,14 @@ def sql_query(session, box, pcid, lod):
     else:
         # FIXME: may skip some points if patch_size/lod_len is decimal
         # we need to fix either here or at loading with the patch_size and lod bounds
-        range_min = 1 #lod * int(patch_size / LOD_LEN) + 1
-        range_max = (lod + 1) * int(patch_size / LOD_LEN)
+        #range_min = 1 #lod * int(patch_size / LOD_LEN) + 1
+        #range_max = (lod + 1) * int(patch_size / LOD_LEN)
+        if (2 ** lod) >= patch_size:
+            range_min = 1
+            range_max = max( int(patch_size / (2 ** (20-lod))), 1)
+        else:
+            range_min = 1
+            range_max = 1
 
     # build the sql query
     sql_limit = ""
