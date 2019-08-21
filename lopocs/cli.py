@@ -242,7 +242,7 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
 
     # When using text files assume they have no header, so specify a header here
     # (These local variable is used to prepare PDAL_PIPELINE below!)
-    header = ', "header": "{}"'.format(data_header) if data_header != '' else ''
+    header = ', "header": "{}"'.format(data_header) if (data_header is not None) & (data_header != '') else ''
 #    if extension == 'text':
 #        header = ', "header": "X Y Z Red Green Blue"'
 
@@ -290,8 +290,6 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
         srid = re.findall('EPSG","(\d+)"', summary['srs']['wkt'])[-1]
 
     p = Proj(init='epsg:{}'.format(srid))
-    print( 'SRID: {0}, Projection: {1}'.format(srid,p))
-
     if p.is_latlong():
         # geographic
         scale_x, scale_y, scale_z = (1e-6, 1e-6, 1e-2)
