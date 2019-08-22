@@ -29,11 +29,7 @@ from lopocs.utils import compute_scale_for_cesium
 samples = {
     'airport': 'https://github.com/PDAL/data/raw/master/liblas/LAS12_Sample_withIntensity_Quick_Terrain_Modeler.laz',
     'sthelens': 'https://github.com/PDAL/data/raw/master/liblas/MtStHelens.laz',
-    'lyon': (3946, 'http://3d.oslandia.com/lyon.laz'),
-    'kit_cn': ( 31467, 'file:///data/KIT-CN-Komplett.las'),
-    'ettenheim': ( 31467, 'file:///data/Ettenheimmuenster.las'),
-    'kit1': ( 31467, 'file:///data/Ausschnitt1-Komplett-Cloud-H.txt'),
-    'kit2': ( 31467, 'file:///data/Ausschnitt2-Komplett-Cloud-H.txt')
+    'lyon': (3946, 'http://3d.oslandia.com/lyon.laz')
 }
 
 PDAL_PIPELINE = """
