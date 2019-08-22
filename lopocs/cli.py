@@ -243,11 +243,9 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
     # When using text files assume they have no header, so specify a header here
     # (These local variable is used to prepare PDAL_PIPELINE below!)
     header = ', "header": "{}"'.format(data_header) if (data_header is not None) & (data_header != '') else ''
-#    if extension == 'text':
-#        header = ', "header": "X Y Z Red Green Blue"'
 
     # Prepare the reader to be used
-    data_reader = data_reader if data_reader != '' else "readers.{}".format(extension)
+    data_reader = data_reader if (data_reader is not None) & (data_reader != '') else "readers.{}".format(extension)
 
     # tablename should be always prefixed
     if '.' not in table:
