@@ -43,6 +43,7 @@ PDAL_PIPELINE = """
         "type": "{data_reader}",
         "filename":"{realfilename}"
         {header}
+        {flt_skip}
     }},
     {{
         "type": "filters.chipper",
@@ -100,6 +101,11 @@ def ko(mess=None):
     if mess:
         click.secho('{} : '.format(mess.replace('\n', '')), nl=False)
     click.secho('ko', fg='red')
+
+def warn(mess=None):
+    if mess:
+        click.secho('{} : '.format(mess.replace('\n', '')), nl=False)
+    click.secho('warning', fg='cyan')
 
 
 def download(label, url, dest):
@@ -203,25 +209,27 @@ def check():
     cmd_pg('PgPointcloud-PostGIS extension', "select default_version from pg_available_extensions where name = 'pointcloud_postgis'")
 
 
+@click.option('--translate', help='Constructs a PDAL filter performing a simple xyz-transformation of the input data. (Example: "10000, 0, 0")', type=str, default=None)
+@click.option('--data-reader', help='The PDAL driver to be used for reading the input file (e.g. readers.text)', type=str)
+@click.option('--data-header', help='Data header containing additional arguments for the PDAL reader', type=str)
+@click.option('--data-skip', help='Number of lines to ignore at the beginning of the file.', type=int, default=0)
+@click.option('--data-mode', help='target column overwrite behaviour when target column exists', default='fail', type=click.Choice(['overwrite', 'append', 'fail']))
 @click.option('--table', required=True, help='table name to store pointclouds, considered in public schema if no prefix provided')
-@click.option('--column', help="column name to store patches", default="points", type=str)
-@click.option('--work-dir', type=click.Path(exists=True), required=True, help="working directory where temporary files will be saved")
-@click.option('--capacity', type=int, default=400, help="number of points in a pcpatch")
-@click.option('--potree', 'usewith', help="load data for use with greyhound/potree", flag_value='potree')
-@click.option('--cesium', 'usewith', help="load data for use with 3dtiles/cesium (data will be re-projected)", flag_value='cesium')
-@click.option('--native', 'usewith', help="load data for use with 3dtiles/native SRS (no re-projection)", default=True, flag_value='native')
-@click.option('--srid', help="set Spatial Reference Identifier (EPSG code) for the source file", default=0, type=int)
-@click.option('--data-mode', help="target column overwrite behaviour when target column exists", default='fail', type=click.Choice(['overwrite', 'append', 'fail']))
-@click.option('--data-header', help="Data header containing additional arguments for the PDAL reader", type=str)
-@click.option('--data-reader', help="The PDAL driver to be used for reading the input file (e.g. readers.text)", type=str)
+@click.option('--column', help='column name to store patches`', default="points", type=str)
+@click.option('--work-dir', type=click.Path(exists=True), required=True, help='working directory where temporary files will be saved')
+@click.option('--capacity', type=int, default=400, help='number of points in a pcpatch')
+@click.option('--potree', 'usewith', help='load data for use with greyhound/potree', flag_value='potree')
+@click.option('--cesium', 'usewith', help='load data for use with 3dtiles/cesium (data will be re-projected)', flag_value='cesium')
+@click.option('--native', 'usewith', help='load data for use with 3dtiles/native SRS (no re-projection)', default=True, flag_value='native')
+@click.option('--srid', help='set Spatial Reference Identifier (EPSG code) for the source file', default=0, type=int)
 @click.argument('filename', type=click.Path(exists=True))
 @cli.command()
-def load(filename, table, column, work_dir, capacity, usewith, srid, data_mode, data_header, data_reader):
+def load(filename, table, column, work_dir, capacity, usewith, srid, data_mode, data_header, data_skip, data_reader, translate):
     '''load pointclouds data using pdal and add metadata needed by lopocs'''
-    _load(filename, table, column, work_dir, capacity, usewith, srid, data_mode, data_header, data_reader)
+    _load(filename, table, column, work_dir, capacity, usewith, srid, data_mode, data_header, data_skip, data_reader, translate)
 
 
-def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mode='fail', data_header='', data_reader=''):
+def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mode='fail', data_header='', data_skip=0, data_reader='', translate=None):
     '''load pointclouds data using pdal and add metadata needed by lopocs'''
     # intialize flask application
     app = create_app()
@@ -246,6 +254,7 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
 
     # Prepare the reader to be used
     data_reader = data_reader if (data_reader is not None) & (data_reader != '') else "readers.{}".format(extension)
+    flt_skip = ', "skip": {}'.format(data_skip) if data_skip != 0 else ''
 
     # tablename should be always prefixed
     if '.' not in table:
@@ -277,7 +286,7 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
         summary = json.loads(output.decode())['summary']
         ok()
     except CalledProcessError as e:
-        ko(str(e))
+        warn(str(e))
         summary = []
 
     if 'srs' not in summary and not srid:
@@ -338,6 +347,22 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
         scale_z = min(compute_scale_for_cesium(zmin, zmax), 1)
         ok('[{}, {}, {}]'.format(scale_x, scale_y, scale_z))
 
+
+    # Add a transformation filter, if requested
+    if (translate is not None) and (translate != ''):
+        pending('Generating translation filter')
+        trans = translate.split(' ')
+        if len(trans) == 3:
+            reproject += """
+            {{
+              "type": "filters.transformation",
+              "matrix": "1 0 0 {0} 0 1 0 {1} 0 0 1 {2} 0 0 0 1"
+            }},
+            """.format(trans[0], trans[1], trans[2])
+            ok();
+        else:
+            fatal('Transformation arguments could not be applied. Use something like --translate "3000000 0 0".')
+
     pg_host = app.config['PG_HOST']
     pg_name = app.config['PG_NAME']
     pg_port = app.config['PG_PORT']
@@ -356,7 +381,7 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
     try:
         check_call(shlex.split(cmd), stderr=DEVNULL, stdout=DEVNULL)
     except CalledProcessError as e:
-        fatal(e)
+        fatal(str(e))
     ok()
 
     pending("Creating indexes")
