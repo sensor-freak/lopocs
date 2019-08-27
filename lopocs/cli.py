@@ -275,8 +275,11 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
         '{basename}_{table}_pipeline.json'.format(**locals()))
 
     # Try to generate the summary. This might fail, epsecially for txt files
-    data_reader_summary = ("--driver " + str(data_reader)) if data_reader else ''
-    cmd = "pdal info {1} --summary {0}".format(filename, data_reader_summary)
+    options = ('--driver {} '.format(str(data_reader))) if data_reader else ''
+    options += ('--{}.header="{}"'.format(str(data_reader), str(data_header))) if data_header else ''
+    options += ('--{}.skip={}'.format(str(data_reader), str(data_skip))) if data_skip else ''
+    options += ('--{}.override_srs={}'.format(str(data_reader), str(srid))) if srid == 0 else ''
+    cmd = "pdal info {1} --summary {0}".format(filename, options)
     try:
         output = check_output(shlex.split(cmd))
         summary = json.loads(output.decode())['summary']
