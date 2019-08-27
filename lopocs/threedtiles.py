@@ -234,10 +234,15 @@ def sql_query(session, box, pcid, lod):
     poly = boundingbox_to_polygon(box)
 
     maxppp = session.lopocstable.max_points_per_patch
+    maxppp = maxppp if maxppp else 1024
+
     # FIXME: need to be cached
     patch_size = session.patch_size
+    LOD_MAX_ABS = 20 # The highest possible LoD value accepted
+    lodlocal = max( 0, min( LOD_MAX_ABS, lod)) # The effective LoD to use
+    lodnp = 2 ** (LOD_MAX_ABS - lodlocal)
 
-    if maxppp:
+    if maxppp & False:
         range_min = 1
         range_max = maxppp
     else:
@@ -245,18 +250,18 @@ def sql_query(session, box, pcid, lod):
         # we need to fix either here or at loading with the patch_size and lod bounds
         #range_min = 1 #lod * int(patch_size / LOD_LEN) + 1
         #range_max = (lod + 1) * int(patch_size / LOD_LEN)
-        if (2 ** lod) >= patch_size:
+        if lodnp < patch_size:
             range_min = 1
-            range_max = max( int(patch_size / (2 ** (20-lod))), 1)
+            range_max = max( int(patch_size / lodnp), 1)
         else:
             range_min = 1
-            range_max = 1
+            range_max = int(2**(lodlocal/2))
+
+    if Config.DEBUG:
+        print( 'Range: {} .. {}, maxppp: {}, lodnp: {}'.format( range_min, range_max, maxppp, lodnp))
 
     # build the sql query
-    sql_limit = ""
-    maxppq = session.lopocstable.max_patches_per_query
-    if maxppq:
-        sql_limit = " limit {0} ".format(maxppq)
+    sql_limit = " limit {} ".format(2**(4+lodlocal))
 
     if Config.USE_MORTON:
         sql = ("select pc_union("
