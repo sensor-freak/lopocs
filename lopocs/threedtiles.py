@@ -139,18 +139,8 @@ pdt = np.dtype([('X', np.float32), ('Y', np.float32), ('Z', np.float32)])
 
 # Get points from the database and convert them into 3DTiles file format
 def get_points(session, box, lod, offsets, pcid, scales, schema, format):
-    print( 'session: {0}'.format(session))
-    print( 'box: {0}'.format(box))
-    print( 'lod: {0}'.format(lod))
-    print( 'offsets: {0}'.format(offsets))
-    print( 'scales: {0}'.format(scales))
-    print( 'schema: {0}'.format(schema))
-    print( 'format: {0}'.format(format))
 
     sql = sql_query(session, box, pcid, lod)
-    if Config.DEBUG:
-        print(sql)
-
     pcpatch_wkb = session.query(sql)[0][0]
     if not pcpatch_wkb:
         # return an empy tile set if the query result is empty
@@ -159,7 +149,6 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
     points, npoints = read_uncompressed_patch(pcpatch_wkb, schema)
     print( 'uncompressed patch lod {1}: {0} pts'.format(npoints, lod))
     fields = points.dtype.fields.keys()
-    print('Fields: {0}'.format(fields))
 
     if ('Red' in fields) & ('Green' in fields) & ('Blue' in fields):
         if max(points['Red']) > 255:
@@ -173,9 +162,8 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
     else:
         # No colors
         # FIXME: compute color gradient based on elevation
-        rgb_reduced = np.zeros((npoints, 3), dtype=int)
+        rgb_reduced = np.zeros(( 3, npoints), dtype=int)
         rgb = np.array(np.core.records.fromarrays(rgb_reduced, dtype=cdt))
-    #print(rgb)
 
     quantized_points_r = np.c_[
         points['X'] * scales[0],
