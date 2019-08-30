@@ -349,9 +349,9 @@ class Session():
 
         res = cls.query("""
             delete from pointcloud_lopocs where schematable = %s and "column" = %s;
-            insert into pointcloud_lopocs (schematable, "column", srid, bbox)
-            values (%s, %s, %s, %s) returning id
-            """, (table, column, table, column, srid, bbox))
+            insert into pointcloud_lopocs (schematable, "column", srid, bbox, max_points_per_patch)
+            values (%s, %s, %s, %s, (select max(pc_numpoints({0})) from {1})) returning id
+            """.format( column, table), (table, column, table, column, srid, bbox))
         plid = res[0][0]
 
         scales = scale_x, scale_y, scale_z
