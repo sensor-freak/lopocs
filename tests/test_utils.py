@@ -1,4 +1,5 @@
 from lopocs import utils
+from pytest import approx
 
 
 def test_list_from_str():
@@ -22,7 +23,7 @@ def test_list_from_str_box():
 
 def test_compute_scales_cesium():
     scale = utils.compute_scale_for_cesium(1.56, 1.80)
-    assert scale == 1e-5
+    assert scale == approx(1e-5, 1e-10)
     scale = utils.compute_scale_for_cesium(4.5556e6, 4.5557e6)
     assert scale == 0.01
     scale = utils.compute_scale_for_cesium(4e5, 5e5)
