@@ -161,9 +161,7 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
         rgb = classification_to_rgb(points)
     else:
         # No colors
-        # FIXME: compute color gradient based on elevation
-        rgb_reduced = np.zeros(( 3, npoints), dtype=int)
-        rgb = np.array(np.core.records.fromarrays(rgb_reduced, dtype=cdt))
+        rgb = None
 
     quantized_points_r = np.c_[
         points['X'] * scales[0],
@@ -186,16 +184,22 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
 
 # Convert the points into simple PTS format
 def format_pts(quantized_points, npoints, rgb, offsets, points, fields):
-    header1 = ['X', 'Y', 'Z', 'Red', 'Green', 'Blue']
+    header1 = ['X', 'Y', 'Z', 'Red', 'Green', 'Blue'] if rgb is not None else ['X', 'Y', 'Z']
     header2 = [fname for fname in fields if (fname not in header1)]
     tile = '"' + '" "'.join(header1 + header2) + '"\n'
 
     for ptidx in range(npoints):
-        tile += '{0} {1} {2} {3} {4} {5}' \
-                .format(quantized_points[ptidx][0] + offsets[0],
-                        quantized_points[ptidx][1] + offsets[1],
-                        quantized_points[ptidx][2] + offsets[2],
-                        rgb[ptidx][0], rgb[ptidx][1], rgb[ptidx][2])
+        if rgb is None:
+            tile += '{0} {1} {2}' \
+                    .format(quantized_points[ptidx][0] + offsets[0],
+                            quantized_points[ptidx][1] + offsets[1],
+                            quantized_points[ptidx][2] + offsets[2])
+        else:
+            tile += '{0} {1} {2} {3} {4} {5}' \
+                    .format(quantized_points[ptidx][0] + offsets[0],
+                            quantized_points[ptidx][1] + offsets[1],
+                            quantized_points[ptidx][2] + offsets[2],
+                            rgb[ptidx][0], rgb[ptidx][1], rgb[ptidx][2])
         for f in header2:
             tile += ' {}'.format( points[f][ptidx])
         tile += '\n'
