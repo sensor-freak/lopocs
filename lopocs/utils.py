@@ -142,7 +142,7 @@ def list_from_str(list_str):
     str = list_str.replace('[', ' ').replace(']', ' ') \
                   .replace('{', ' ').replace('}', ' ') \
                   .replace('(', ' ').replace(')', ' ')
-    return [float(val) for val in list_str.split(',')]
+    return [float(val) for val in str.split(',')]
 
 
 def boundingbox_to_polygon(box):
