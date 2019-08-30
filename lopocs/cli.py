@@ -205,6 +205,7 @@ def check():
     cmd_pg('PgPointcloud-PostGIS extension', "select default_version from pg_available_extensions where name = 'pointcloud_postgis'")
 
 
+@click.option('--skip-index-creation', help='If True, skip creation/update of indices. Use this when performing bulk insert of multiple pointcloud files.', type=bool, default=False, flag_value=True)
 @click.option('--translate', help='Constructs a PDAL filter performing a simple xyz-transformation of the input data. (Example: "10000, 0, 0")', type=str, default=None)
 @click.option('--data-reader', help='The PDAL driver to be used for reading the input file (e.g. readers.text)', type=str)
 @click.option('--data-header', help='Data header containing additional arguments for the PDAL reader', type=str)
@@ -220,12 +221,12 @@ def check():
 @click.option('--srid', help='set Spatial Reference Identifier (EPSG code) for the source file', default=0, type=int)
 @click.argument('filename', type=click.Path(exists=True))
 @cli.command()
-def load(filename, table, column, work_dir, capacity, usewith, srid, data_mode, data_header, data_skip, data_reader, translate):
+def load(filename, table, column, work_dir, capacity, usewith, srid, data_mode, data_header, data_skip, data_reader, translate, skip_index_creation):
     '''load pointclouds data using pdal and add metadata needed by lopocs'''
-    _load(filename, table, column, work_dir, capacity, usewith, srid, data_mode, data_header, data_skip, data_reader, translate)
+    _load(filename, table, column, work_dir, capacity, usewith, srid, data_mode, data_header, data_skip, data_reader, translate, skip_index_creation)
 
 
-def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mode='fail', data_header='', data_skip=0, data_reader='', translate=None):
+def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mode='fail', data_header='', data_skip=0, data_reader='', translate=None, skip_index_creation=False):
     '''load pointclouds data using pdal and add metadata needed by lopocs'''
     # intialize flask application
     app = create_app()
@@ -383,14 +384,8 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
         fatal(str(e))
     ok()
 
-    pending("Creating indexes")
-    Session.execute("""
-        create index if not exists env_idx on {table} using gist(pc_envelopegeometry({column}));
-        alter table {table} add column if not exists morton bigint;
-        select Morton_Update('{table}', '{column}', 'morton', 128, TRUE);
-        create index if not exists morton_idx on {table}(morton);
-    """.format(**locals()))
-    ok()
+    if not skip_index_creation:
+        _update_table_indices( table, column, 128, srid, scale, offset)
 
     pending("Adding metadata for lopocs")
     Session.update_metadata(
@@ -398,6 +393,20 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
         scale[0], scale[1], scale[2],
         offset[0], offset[1], offset[2]
     )
+    ok()
+
+
+def _update_table_indices( table, column, morton_size, srid, scale, offset):
+    '''
+    Updated the indices for the given table and column
+    '''
+    pending("Creating indexes")
+    Session.execute("""
+        create index if not exists env_idx on {table} using gist(pc_envelopegeometry({column}));
+        alter table {table} add column if not exists morton bigint;
+        select Morton_Update('{table}', '{column}', 'morton', {morton_size}, TRUE);
+        create index if not exists morton_idx on {table}(morton);
+    """.format(**locals()))
     ok()
 
 
@@ -411,10 +420,12 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
 @cli.command()
 def tileset(table, column, server_url, work_dir, usewith):
     """
-    (Re)build a tileset.json for a given table
+    (Re)build a tileset.json for a given table.
+    TODO: Specify the LoDs for which to generate the tileset.
+    TODO: Check function of this feature when using --potree
     """
     # intialize flask application
-    create_app()
+    app = create_app()
 
     work_dir = Path(work_dir)
 
@@ -569,3 +580,24 @@ def demo(sample, work_dir, server_url, usewith, srid):
         'Now you can test lopocs server by executing "lopocs serve"'
         .format(sample)
     )
+
+
+@cli.command(name='update-index')
+@click.option('--table', required=True, help='table name to store pointclouds, considered in public schema if no prefix provided')
+@click.option('--column', help="column name to store patches. (Default='points')", default="points", type=str)
+@click.option('--morton-size', help="column value for the size argument of the morton index.", default=128, type=int)
+def update_index(table, column, morton_size):
+    '''
+    Update the indices for a resource given by table and column name
+    '''
+    # intialize flask application
+    app = create_app()
+
+    # tablename should be always prefixed
+    if '.' not in table:
+        table = 'public.{}'.format(table)
+
+    srid = Session( table, column).srsid
+    scale = ( 1.0, 1.0, 1.0)
+    offset = ( 0.0, 0.0, 0.0)
+    _update_table_indices( table, column, morton_size, srid, scale, offset)
