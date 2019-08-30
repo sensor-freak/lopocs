@@ -59,12 +59,12 @@ PDAL_PIPELINE = """
         "srid":"{srid}",
         "overwrite":"{overwrite}",
         "column": "{column}",
-        "scale_x": "{scale_x}",
-        "scale_y": "{scale_y}",
-        "scale_z": "{scale_z}",
-        "offset_x": "{offset_x}",
-        "offset_y": "{offset_y}",
-        "offset_z": "{offset_z}"
+        "scale_x": "{scale[0]}",
+        "scale_y": "{scale[1]}",
+        "scale_z": "{scale[2]}",
+        "offset_x": "{offset[0]}",
+        "offset_y": "{offset[1]}",
+        "offset_z": "{offset[2]}"
     }}
 ]
 }}"""
@@ -298,20 +298,20 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
     p = Proj(init='epsg:{}'.format(srid))
     if p.is_latlong():
         # geographic
-        scale_x, scale_y, scale_z = (1e-6, 1e-6, 1e-2)
+        scale = (1e-6, 1e-6, 1e-2)
     else:
         # projection or geocentric
-        scale_x, scale_y, scale_z = (0.01, 0.01, 0.01)
+        scale = (0.01, 0.01, 0.01)
 
     if 'bounds' in summary:
         # A bounding box is given in the summary, so apply some scaling...
-        offset_x = summary['bounds']['minx'] + (summary['bounds']['maxx'] - summary['bounds']['minx']) / 2
-        offset_y = summary['bounds']['miny'] + (summary['bounds']['maxy'] - summary['bounds']['miny']) / 2
-        offset_z = summary['bounds']['minz'] + (summary['bounds']['maxz'] - summary['bounds']['minz']) / 2
+        offset = ( summary['bounds']['minx'] + (summary['bounds']['maxx'] - summary['bounds']['minx']) / 2,
+                   summary['bounds']['miny'] + (summary['bounds']['maxy'] - summary['bounds']['miny']) / 2,
+                   summary['bounds']['minz'] + (summary['bounds']['maxz'] - summary['bounds']['minz']) / 2)
     else:
         # The summary has no bounding box, so do not scale at all
-        offset_x, offset_y, offset_z = (0, 0, 0)
-        scale_x, scale_y, scale_z = (1, 1, 1)
+        offset = (0, 0, 0)
+        scale = (1, 1, 1)
 
     reproject = ""
 
@@ -334,17 +334,17 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
         # xmin, ymin, zmin = transform(pini, pout, offset_x, offset_y, offset_z)
         xmin, ymin, zmin = transform(pini, pout, summary['bounds']['minx'], summary['bounds']['miny'], summary['bounds']['minz'])
         xmax, ymax, zmax = transform(pini, pout, summary['bounds']['maxx'], summary['bounds']['maxy'], summary['bounds']['maxz'])
-        offset_x, offset_y, offset_z = xmin, ymin, zmin
+        offset = (xmin, ymin, zmin)
         click.echo('{} < x < {}'.format(xmin, xmax))
         click.echo('{} < y < {}'.format(ymin, ymax))
         click.echo('{} < z < {}  '.format(zmin, zmax), nl=False)
         ok()
         pending('Computing best scales for cesium')
         # override scales for cesium if possible we try to use quantized positions
-        scale_x = min(compute_scale_for_cesium(xmin, xmax), 1)
-        scale_y = min(compute_scale_for_cesium(ymin, ymax), 1)
-        scale_z = min(compute_scale_for_cesium(zmin, zmax), 1)
-        ok('[{}, {}, {}]'.format(scale_x, scale_y, scale_z))
+        scale = ( min(compute_scale_for_cesium(xmin, xmax), 1),
+                  min(compute_scale_for_cesium(ymin, ymax), 1),
+                  min(compute_scale_for_cesium(zmin, zmax), 1))
+        ok('[{}, {}, {}]'.format(scale[0], scale[1], scale[2]))
 
 
     # Add a transformation filter, if requested
@@ -394,8 +394,9 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
 
     pending("Adding metadata for lopocs")
     Session.update_metadata(
-        table, column, srid, scale_x, scale_y, scale_z,
-        offset_x, offset_y, offset_z
+        table, column, srid,
+        scale[0], scale[1], scale[2],
+        offset[0], offset[1], offset[2]
     )
     ok()
 
@@ -434,8 +435,8 @@ def tileset(table, column, server_url, work_dir, usewith):
         lod_max = 5
         # add schema currently used by potree (version 1.5RC)
         Session.add_output_schema(
-            table, column, 0.01, 0.01, 0.01,
-            offset_x, offset_y, offset_z, srid, potree_schema
+            table, column, scale[0], scale[1], scale[2],
+            offset[0], offset[1], offset[2], srid, potree_schema
         )
         cache_file = (
             "{0}_{1}_{2}_{3}_{4}.hcy".format(
