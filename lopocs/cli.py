@@ -587,7 +587,8 @@ def demo(sample, work_dir, server_url, usewith, srid):
 @click.option('--table', required=True, help='table name to store pointclouds, considered in public schema if no prefix provided')
 @click.option('--column', help="column name to store patches. (Default='points')", default="points", type=str)
 @click.option('--morton-size', help="column value for the size argument of the morton index.", default=128, type=int)
-def update_index(table, column, morton_size):
+@click.option('--srid', help="set Spatial Reference Identifier (EPSG code) for the data set", default=0, type=int)
+def update_index(table, column, morton_size, srid):
     '''
     Update the indices for a resource given by table and column name
     '''
@@ -598,7 +599,14 @@ def update_index(table, column, morton_size):
     if '.' not in table:
         table = 'public.{}'.format(table)
 
-    srid = Session( table, column).srsid
+    # See if the table is already registered. 
+    # If not, the srid must be provided by the user.
+    try:
+        srid = Session( table, column).srsid
+    except LopocsException:
+        if srid == 0:
+            raise LopocsException('SRID not determined, specifiy SRID in command line (table {0}, column {1})'.format(table, column))
+
     scale = ( 1.0, 1.0, 1.0)
     offset = ( 0.0, 0.0, 0.0)
     _update_table_indices( table, column, morton_size, srid, scale, offset)
