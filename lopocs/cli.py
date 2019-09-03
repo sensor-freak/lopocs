@@ -394,10 +394,10 @@ def _update_table_indices( table, column, morton_size, srid, scale, offset):
     '''
     pending("Creating indexes")
     Session.execute("""
-        create index if not exists env_idx on {table} using gist(pc_envelopegeometry({column}));
+        create index if not exists {table}_env_idx on {table} using gist(pc_envelopegeometry({column}));
         alter table {table} add column if not exists morton bigint;
         select Morton_Update('{table}', '{column}', 'morton', {morton_size}, TRUE);
-        create index if not exists morton_idx on {table}(morton);
+        create index if not exists {table}_morton_idx on {table}(morton);
     """.format(**locals()))
     ok()
 
