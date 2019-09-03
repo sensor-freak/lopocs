@@ -277,7 +277,7 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
 
     # Try to generate the summary. This might fail, epsecially for txt files
     options = ('--driver {} '.format(str(data_reader))) if data_reader else ''
-    options += ('--{}.header="{}"'.format(str(data_reader), str(data_header))) if data_header else ''
+    options += ('--{}.header="{}" '.format(str(data_reader), str(data_header))) if data_header else ''
     options += ('--{}.skip={}'.format(str(data_reader), str(data_skip))) if data_skip else ''
     options += ('--{}.override_srs={}'.format(str(data_reader), str(srid))) if srid == 0 else ''
     cmd = "pdal info {1} --summary {0}".format(filename, options)
@@ -392,12 +392,13 @@ def _update_table_indices( table, column, morton_size, srid, scale, offset):
     '''
     Updated the indices for the given table and column
     '''
+    schema, tab = table.split('.')
     pending("Creating indexes")
     Session.execute("""
-        create index if not exists {table}_env_idx on {table} using gist(pc_envelopegeometry({column}));
+        create index if not exists {tab}_env_idx on {table} using gist(pc_envelopegeometry({column}));
         alter table {table} add column if not exists morton bigint;
         select Morton_Update('{table}', '{column}', 'morton', {morton_size}, TRUE);
-        create index if not exists {table}_morton_idx on {table}(morton);
+        create index if not exists {tab}_morton_idx on {table}(morton);
     """.format(**locals()))
     ok()
 

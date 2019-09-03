@@ -205,8 +205,7 @@ class Session():
                 # catalog empty
                 self.fill_catalog()
             if (table, column) not in self.catalog:
-                print( "Table {0}, Column {1}".format(table, column))
-                raise LopocsException('table or column not found in database')
+                raise LopocsException('table or column not found in database (table {0}, column {1})'.format(table, column))
 
         self.lopocstable = self.catalog[(table, column)]
         self.table = table
