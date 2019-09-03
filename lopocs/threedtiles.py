@@ -18,7 +18,7 @@ from .database import Session
 
 # These are the LoD levels to be generated when creating the tileset data
 LOD_MIN = 0
-LOD_MAX = 6
+LOD_MAX = 4
 
 # This value is used to calculate the LoD level at which all points from a patch are returned
 LOD_LEN = LOD_MAX + 1 - LOD_MIN
@@ -149,6 +149,9 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
     points, npoints = read_uncompressed_patch(pcpatch_wkb, schema)
     print( 'uncompressed patch lod {1}: {0} pts'.format(npoints, lod))
     fields = points.dtype.fields.keys()
+#    print('Fields: {0}'.format(fields))
+    #for f in fields:
+    #    print('{0} - {1}'.format(f, points[f][0]))
 
     if ('Red' in fields) & ('Green' in fields) & ('Blue' in fields):
         if max(points['Red']) > 255:
@@ -265,6 +268,10 @@ def sql_query(session, box, pcid, lod):
         print( 'Range: {} .. {}, maxppp: {}, lodnp: {}'.format( range_min, range_max, maxppp, lodnp))
 
     # build the sql query
+#    sql_limit = ""
+#    maxppq = session.lopocstable.max_patches_per_query
+#    if maxppq:
+#        sql_limit = " limit {0} ".format(maxppq)
     sql_limit = " limit {} ".format(2**(4+lodlocal))
 
     if Config.USE_MORTON:
@@ -272,8 +279,8 @@ def sql_query(session, box, pcid, lod):
                "pc_filterbetween( "
                "pc_range({0}, {4}, {5}), 'Z', {6}, {7} )) from "
                "(select {0} from {1} "
-               "where pc_intersects({0}, st_geomfromtext('polygon (("
-               "{2}))',{3})) order by morton {8})_;"
+               "where {0}::geometry && st_geomfromtext('polygon (({2}))',{3}) "
+               "order by morton, {0}::geometry {8})_;"
                .format(session.column, session.table,
                        poly, session.srsid, range_min, range_max,
                        box[2] - 0.1, box[5] + 0.1, sql_limit,
@@ -288,6 +295,10 @@ def sql_query(session, box, pcid, lod):
                        poly, session.srsid, range_min, range_max,
                        box[2], box[5], sql_limit,
                        pcid))
+
+    if Config.DEBUG:
+        print('LoD {0}, patch_size {1}, s/2^l {2}'.format(lod, patch_size, patch_size / (2 ** lod)))
+        print('Resulting SQL: ' + sql)
 
     return sql
 
@@ -419,6 +430,8 @@ def split_bbox(bbox):
 
 def children(session, baseurl, offsets, bbox, lod, pcid, err):
 
+    print("children(lod {}, {})".format(lod, bbox))
+
     # run sql
     sql = sql_query(session, bbox, pcid, lod)
     pcpatch_wkb = session.query(sql)[0][0]
@@ -445,3 +458,19 @@ def children(session, baseurl, offsets, bbox, lod, pcid, err):
             json_me["children"] = children_list
 
     return json_me
+
+
+def ThreeDTilesLoad(filename, table, column, work_dir, capacity, usewith, srid=0, data_mode='fail', data_header='', data_reader=''):
+    return {
+        "filename": filename,
+        "table": table,
+        "column": column,
+        "work_dir": work_dir,
+        "capacity": capacity,
+        "usewith": usewith,
+        "srid": srid,
+        "data_mode": data_mode,
+        "data_header": data_header,
+        "data_reader": data_reader,
+        "result": False
+    }
