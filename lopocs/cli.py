@@ -387,14 +387,6 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
     if not skip_index_creation:
         _update_table_indices( table, column, 128, srid, scale, offset)
 
-    pending("Adding metadata for lopocs")
-    Session.update_metadata(
-        table, column, srid,
-        scale[0], scale[1], scale[2],
-        offset[0], offset[1], offset[2]
-    )
-    ok()
-
 
 def _update_table_indices( table, column, morton_size, srid, scale, offset):
     '''
@@ -407,6 +399,14 @@ def _update_table_indices( table, column, morton_size, srid, scale, offset):
         select Morton_Update('{table}', '{column}', 'morton', {morton_size}, TRUE);
         create index if not exists morton_idx on {table}(morton);
     """.format(**locals()))
+    ok()
+
+    pending("Adding metadata for lopocs")
+    Session.update_metadata(
+        table, column, srid,
+        scale[0], scale[1], scale[2],
+        offset[0], offset[1], offset[2]
+    )
     ok()
 
 
