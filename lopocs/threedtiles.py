@@ -280,7 +280,7 @@ def sql_query(session, box, pcid, lod):
                "pc_range({0}, {4}, {5}), 'Z', {6}, {7} )) from "
                "(select {0} from {1} "
                "where {0}::geometry && st_geomfromtext('polygon (({2}))',{3}) "
-               "order by morton, {0}::geometry {8})_;"
+               "order by morton {8})_;"
                .format(session.column, session.table,
                        poly, session.srsid, range_min, range_max,
                        box[2] - 0.1, box[5] + 0.1, sql_limit,
