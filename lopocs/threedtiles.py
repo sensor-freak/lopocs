@@ -272,7 +272,7 @@ def sql_query(session, box, pcid, lod):
 #    maxppq = session.lopocstable.max_patches_per_query
 #    if maxppq:
 #        sql_limit = " limit {0} ".format(maxppq)
-    sql_limit = " limit {} ".format(2**(4+lodlocal))
+    sql_limit = " limit {} ".format(min(2**(4+lodlocal), 1024))
 
     if Config.USE_MORTON:
         sql = ("select pc_union("
