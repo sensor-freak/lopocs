@@ -194,6 +194,11 @@ def check():
     if not app:
         fatal("it appears that you don't have any configuration file")
 
+    # Lopocs version
+    click.echo('LOPoCS version ... ', nl=False)
+    green(__version__)
+    cmd_output('LOPoCS commit', 'cat lopocs-git-rev.txt')
+
     # pdal
     cmd_output('Pdal', 'pdal-config --version')
     cmd_rt('Pdal plugin pgpointcloud', "test -e `pdal-config --plugin-dir`/libpdal_plugin_writer_pgpointcloud.so")
