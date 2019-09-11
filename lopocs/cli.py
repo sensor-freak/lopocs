@@ -104,6 +104,13 @@ def warn(mess=None):
     click.secho('warning', fg='cyan')
 
 
+def finished(msg):
+    click.echo('[{}] {}'.format(
+        datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        msg
+    ))
+
+
 def download(label, url, dest):
     '''
     download url using requests and a progressbar
@@ -392,6 +399,8 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
     if not skip_index_creation:
         _update_table_indices( table, column, 128, srid, scale, offset)
 
+    finished('Loading into {} completed'.format(table))
+
 
 def _update_table_indices( table, column, morton_size, srid, scale, offset):
     '''
@@ -615,3 +624,5 @@ def update_index(table, column, morton_size, srid):
     scale = ( 1.0, 1.0, 1.0)
     offset = ( 0.0, 0.0, 0.0)
     _update_table_indices( table, column, morton_size, srid, scale, offset)
+
+    finished('Updating indexes for {} completed'.format(table))
