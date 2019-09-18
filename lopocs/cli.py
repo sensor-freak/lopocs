@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from subprocess import check_call, call, check_output, CalledProcessError, DEVNULL
 from urllib import parse
+from ilock import ILock
 
 import click
 import requests
@@ -31,6 +32,12 @@ samples = {
     'sthelens': 'https://github.com/PDAL/data/raw/master/liblas/MtStHelens.laz',
     'lyon': (3946, 'http://3d.oslandia.com/lyon.laz')
 }
+
+
+# Used to synchronize execution of the create_pointcloud_lopocs_table function,
+# to avoid concurrency problems when running multiple load commands in parallel
+global_setup_lock = ILock('LOPoCS DB Lock')
+
 
 PDAL_PIPELINE = """
 {{
@@ -253,9 +260,12 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
     basename = filename.stem
     basedir = filename.parent
 
-    pending('Creating metadata table')
-    Session.create_pointcloud_lopocs_table()
-    ok()
+    try:
+        with global_setup_lock:
+            pending('Creating metadata table')
+            Session.create_pointcloud_lopocs_table()
+    finally:
+        ok()
 
     # When using text files assume they have no header, so specify a header here
     # (These local variable is used to prepare PDAL_PIPELINE below!)
