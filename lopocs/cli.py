@@ -24,7 +24,7 @@ from lopocs.database import Session, LopocsException
 from lopocs.potreeschema import potree_schema
 from lopocs.potreeschema import potree_page
 from lopocs.cesium import cesium_page
-from lopocs.utils import compute_scale_for_cesium
+from lopocs.utils import compute_scale_for_cesium, normalize_names
 
 
 samples = {
@@ -259,6 +259,7 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
     extension = extension if extension != 'txt' else 'text'
     basename = filename.stem
     basedir = filename.parent
+    table, column = normalize_names( table, column)
 
     try:
         with global_setup_lock:
@@ -618,6 +619,8 @@ def update_index(table, column, morton_size, srid):
     '''
     # intialize flask application
     app = create_app()
+
+    table, column = normalize_names( table, column)
 
     # tablename should be always prefixed
     if '.' not in table:
