@@ -71,6 +71,10 @@ def ThreeDTilesRead(table, column, bounds, lod, format):
     scales = stored_patches['scales']
     offsets = stored_patches['offsets']
 
+    # When Z is empty, set some valid Z range
+    if box[2] >= box[5]:
+        box[5] = box[2] + 1000
+
     [tile, npoints] = get_points(session, box, lod, offsets, pcid, scales, schema, format)
 
     if Config.DEBUG:
