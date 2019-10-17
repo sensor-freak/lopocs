@@ -503,7 +503,7 @@ def ThreeDTilesGetBounds(table, column):
     bboxwgs = session.query(sql)
     ptmin = json.loads(bboxwgs[0][0])['coordinates']
     ptmax = json.loads(bboxwgs[0][1])['coordinates']
-    # Why are inices 1-0 here? 0 should be X, y should be y!
+    # Why are indices 1-0 here? 0 should be X, y should be y!
     conv.add_track( ptmin[1], ptmin[0], ptmax[1], ptmax[0], bbox['zmax'])
 
     # Add tile bounds as routes
@@ -519,7 +519,5 @@ def ThreeDTilesGetBounds(table, column):
 
     # Make an XML response and return it
     response = make_response(result)
-    print(response.headers)
     response.headers['Content-Type'] = 'application/gpx+xml'
-    #response.headers.remove('content-type')
     return response
