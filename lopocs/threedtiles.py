@@ -15,6 +15,8 @@ from .utils import (
 )
 from .conf import Config
 from .database import Session
+from .t2pconverter import T2PConverter
+
 
 # These are the LoD levels to be generated when creating the tileset data
 LOD_MIN = 0
@@ -49,11 +51,16 @@ def ThreeDTilesInfo(table, column):
     # srs
     srs = session.srs
 
+    sql = 'select count(*) from {}'.format(table)
+    npatches = session.query(sql)[0][0]
+
     # build json
     return {
         "bounds": [box['xmin'], box['ymin'], box['zmin'],
                    box['xmax'], box['ymax'], box['zmax']],
         "numPoints": npoints,
+        "numPatches": npatches,
+        "maxPatchSize": session.lopocstable.max_points_per_patch,
         "srs": srs
     }
 
@@ -478,3 +485,41 @@ def ThreeDTilesLoad(filename, table, column, work_dir, capacity, usewith, srid=0
         "data_reader": data_reader,
         "result": False
     }
+
+
+def ThreeDTilesGetBounds(table, column):
+    conv = T2PConverter()
+
+    session = Session(table, column)
+    bbox = session.boundingbox
+    bbox['srs'] = session.srsid
+
+    # Add the total bounding box as a track
+    sql = """
+        select
+            st_asgeojson(st_transform(st_PointFromText('POINT({xmin} {ymin})', {srs}), 4326)),
+            st_asgeojson(st_transform(st_PointFromText('POINT({xmax} {ymax})', {srs}), 4326))
+          """.format(**bbox)
+    bboxwgs = session.query(sql)
+    ptmin = json.loads(bboxwgs[0][0])['coordinates']
+    ptmax = json.loads(bboxwgs[0][1])['coordinates']
+    # Why are inices 1-0 here? 0 should be X, y should be y!
+    conv.add_track( ptmin[1], ptmin[0], ptmax[1], ptmax[0], bbox['zmax'])
+
+    # Add tile bounds as routes
+    sql = 'select st_asgeojson(st_transform({column}::geometry, 4326)) from {table}'.format(**locals())
+    tiles = session.query(sql)
+    for tile in tiles:
+        tileobj = json.loads(tile[0])
+        conv.add_route(tileobj['coordinates'][0][0][1], tileobj['coordinates'][0][0][0],
+                       tileobj['coordinates'][0][2][1], tileobj['coordinates'][0][2][0],
+                       bbox['zmax'] + 1000)
+
+    result = conv.to_xml()
+
+    # Make an XML response and return it
+    response = make_response(result)
+    print(response.headers)
+    response.headers['Content-Type'] = 'application/gpx+xml'
+    #response.headers.remove('content-type')
+    return response

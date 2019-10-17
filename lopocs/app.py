@@ -2,11 +2,11 @@
 from flask_restplus import Api, Resource, reqparse
 
 from .greyhound import GreyhoundInfo, GreyhoundRead, GreyhoundHierarchy
-from .threedtiles import ThreeDTilesInfo, ThreeDTilesRead, ThreeDTilesResources
+from .threedtiles import ThreeDTilesInfo, ThreeDTilesRead, ThreeDTilesResources, ThreeDTilesGetBounds
 from .database import Session
 
 api = Api(
-    version='0.1',
+    version='0.2',
     title='LOPoCS API',
     description='API for accessing LOPoCS'
 )
@@ -181,3 +181,20 @@ class ThreeDTilesReadPtsRoute(Resource):
             args.get('lod'),
             'pts'
         )
+
+
+@threedtiles_ns.route("/<resource>/get.bounds.gpx")
+class ThreeDTilesGetBoundsRoute(Resource):
+
+    #threedtiles_gettiles = reqparse.RequestParser()
+    #threedtiles_gettiles.add_argument('bounds', type=str, required=True)
+    #threedtiles_gettiles.add_argument('lod', type=int, required=True)
+
+    #@threedtiles_ns.expect(threedtiles_gettiles, validate=True)
+    def get(self, resource):
+        table, column = validate_resource(resource)
+        #args = threedtiles_gettiles.parse_args()
+        return ThreeDTilesGetBounds(
+            table, column
+        )
+

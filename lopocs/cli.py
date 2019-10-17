@@ -598,7 +598,7 @@ def demo(sample, work_dir, server_url, usewith, srid):
         _load(dest, sample, 'points', work_dir, 400, usewith, srid=srid)
     else:
         _load(dest, sample, 'points', work_dir, 400, usewith)
-        
+
     # build the tileset file
     tileset(sample, 'points', server_url, work_dir, usewith)
 
@@ -626,7 +626,7 @@ def update_index(table, column, morton_size, srid):
     if '.' not in table:
         table = 'public.{}'.format(table)
 
-    # See if the table is already registered. 
+    # See if the table is already registered.
     # If not, the srid must be provided by the user.
     try:
         srid = Session( table, column).srsid
