@@ -183,18 +183,22 @@ class ThreeDTilesReadPtsRoute(Resource):
         )
 
 
+desc = 'Retrieves a GPX model of the bounds of the tiles that are stored in the database.'
+paramsdesc = {'resource': 'The name of the resource to be queried'}
 @threedtiles_ns.route("/<resource>/get.bounds.gpx")
+@threedtiles_ns.doc(description=desc, params=paramsdesc)
 class ThreeDTilesGetBoundsRoute(Resource):
 
-    #threedtiles_gettiles = reqparse.RequestParser()
-    #threedtiles_gettiles.add_argument('bounds', type=str, required=True)
-    #threedtiles_gettiles.add_argument('lod', type=int, required=True)
+    threedtiles_getbounds = reqparse.RequestParser()
+    threedtiles_getbounds.add_argument('limit', type=int, required=False, default=4096,
+                                       help='The maximum number of tiles to process. Use 0 to load all tiles (this may take some time!)')
 
-    #@threedtiles_ns.expect(threedtiles_gettiles, validate=True)
+    @threedtiles_ns.expect(threedtiles_getbounds, validate=True)
     def get(self, resource):
         table, column = validate_resource(resource)
-        #args = threedtiles_gettiles.parse_args()
+        args = self.threedtiles_getbounds.parse_args()
         return ThreeDTilesGetBounds(
-            table, column
+            table, column,
+            args.get('limit')
         )
 

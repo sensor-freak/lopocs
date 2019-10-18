@@ -487,7 +487,7 @@ def ThreeDTilesLoad(filename, table, column, work_dir, capacity, usewith, srid=0
     }
 
 
-def ThreeDTilesGetBounds(table, column):
+def ThreeDTilesGetBounds(table, column, limit):
     conv = T2PConverter()
 
     session = Session(table, column)
@@ -506,8 +506,10 @@ def ThreeDTilesGetBounds(table, column):
     # Why are indices 1-0 here? 0 should be X, y should be y!
     conv.add_track( ptmin[1], ptmin[0], ptmax[1], ptmax[0], bbox['zmax'])
 
+    limitclause = 'order by morton limit {}'.format(limit) if limit != 0 else ''
+    
     # Add tile bounds as routes
-    sql = 'select st_asgeojson(st_transform({column}::geometry, 4326)) from {table}'.format(**locals())
+    sql = 'select st_asgeojson(st_transform({column}::geometry, 4326)) from {table} {limitclause}'.format(**locals())
     tiles = session.query(sql)
     for tile in tiles:
         tileobj = json.loads(tile[0])
