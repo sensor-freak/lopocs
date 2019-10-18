@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import geojson
 import math
 
 import numpy as np
@@ -487,7 +488,7 @@ def ThreeDTilesLoad(filename, table, column, work_dir, capacity, usewith, srid=0
     }
 
 
-def ThreeDTilesGetBounds(table, column, limit):
+def ThreeDTilesGetBoundsGpx(table, column, limit):
     conv = T2PConverter()
 
     session = Session(table, column)
@@ -507,7 +508,7 @@ def ThreeDTilesGetBounds(table, column, limit):
     conv.add_track( ptmin[1], ptmin[0], ptmax[1], ptmax[0], bbox['zmax'])
 
     limitclause = 'order by morton limit {}'.format(limit) if limit != 0 else ''
-    
+
     # Add tile bounds as routes
     sql = 'select st_asgeojson(st_transform({column}::geometry, 4326)) from {table} {limitclause}'.format(**locals())
     tiles = session.query(sql)
@@ -522,4 +523,47 @@ def ThreeDTilesGetBounds(table, column, limit):
     # Make an XML response and return it
     response = make_response(result)
     response.headers['Content-Type'] = 'application/gpx+xml'
+    return response
+
+
+def ThreeDTilesGetBoundsGeoJson(table, column, limit):
+    session = Session(table, column)
+    bbox = session.boundingbox
+    bbox['srs'] = session.srsid
+
+    # Add the total bounding box as a Feature with geometry
+    sql = """
+        select
+            st_asgeojson(st_transform(st_PointFromText('POINT({xmin} {ymin})', {srs}), 4326)),
+            st_asgeojson(st_transform(st_PointFromText('POINT({xmax} {ymax})', {srs}), 4326))
+          """.format(**bbox)
+    bboxwgs = session.query(sql)
+    ptmin = json.loads(bboxwgs[0][0])['coordinates']
+    ptmax = json.loads(bboxwgs[0][1])['coordinates']
+    geom = geojson.Polygon([[(ptmin[0], ptmin[1]),
+                             (ptmax[0], ptmin[1]),
+                             (ptmax[0], ptmax[1]),
+                             (ptmin[0], ptmax[1]),
+                             (ptmin[0], ptmin[1])]])
+    outerbox = geojson.Feature(geometry=geom, bbox=[ptmin[0], ptmin[1], ptmax[0], ptmax[1]])
+    outerbox.properties['description'] = 'total'
+
+    featcoll = geojson.FeatureCollection([])
+    featcoll.bbox = [ptmin[0], ptmin[1], ptmax[0], ptmax[1]]
+    featcoll.features.append(outerbox)
+
+    limitclause = 'order by morton limit {}'.format(limit) if limit != 0 else ''
+    sql = 'select st_asgeojson(st_transform({column}::geometry, 4326)) from {table} {limitclause}'.format(**locals())
+    tiles = session.query(sql)
+    for tile in tiles:
+        tileobj = json.loads(tile[0])
+        tilebox = geojson.Feature(geometry=tileobj)
+        tilebox.properties['description'] = 'tile'
+        featcoll.features.append(tilebox)
+
+    result = featcoll
+
+    # Make a geojson response and return it
+    response = make_response(result)
+    response.headers['Content-Type'] = 'application/geojson'
     return response

@@ -2,7 +2,7 @@
 from flask_restplus import Api, Resource, reqparse
 
 from .greyhound import GreyhoundInfo, GreyhoundRead, GreyhoundHierarchy
-from .threedtiles import ThreeDTilesInfo, ThreeDTilesRead, ThreeDTilesResources, ThreeDTilesGetBounds
+from .threedtiles import ThreeDTilesInfo, ThreeDTilesRead, ThreeDTilesResources, ThreeDTilesGetBoundsGpx, ThreeDTilesGetBoundsGeoJson
 from .database import Session
 
 api = Api(
@@ -187,7 +187,7 @@ desc = 'Retrieves a GPX model of the bounds of the tiles that are stored in the 
 paramsdesc = {'resource': 'The name of the resource to be queried'}
 @threedtiles_ns.route("/<resource>/get.bounds.gpx")
 @threedtiles_ns.doc(description=desc, params=paramsdesc)
-class ThreeDTilesGetBoundsRoute(Resource):
+class ThreeDTilesGetBoundsGpxRoute(Resource):
 
     threedtiles_getbounds = reqparse.RequestParser()
     threedtiles_getbounds.add_argument('limit', type=int, required=False, default=4096,
@@ -197,7 +197,27 @@ class ThreeDTilesGetBoundsRoute(Resource):
     def get(self, resource):
         table, column = validate_resource(resource)
         args = self.threedtiles_getbounds.parse_args()
-        return ThreeDTilesGetBounds(
+        return ThreeDTilesGetBoundsGpx(
+            table, column,
+            args.get('limit')
+        )
+
+
+desc = 'Retrieves a GeoJSON model of the bounds of the tiles that are stored in the database.'
+paramsdesc = {'resource': 'The name of the resource to be queried'}
+@threedtiles_ns.route("/<resource>/get.bounds.geojson")
+@threedtiles_ns.doc(description=desc, params=paramsdesc)
+class ThreeDTilesGetBoundsGeoJsonRoute(Resource):
+
+    threedtiles_getbounds = reqparse.RequestParser()
+    threedtiles_getbounds.add_argument('limit', type=int, required=False, default=4096,
+                                       help='The maximum number of tiles to process. Use 0 to load all tiles (this may take some time!)')
+
+    @threedtiles_ns.expect(threedtiles_getbounds, validate=True)
+    def get(self, resource):
+        table, column = validate_resource(resource)
+        args = self.threedtiles_getbounds.parse_args()
+        return ThreeDTilesGetBoundsGeoJson(
             table, column,
             args.get('limit')
         )
