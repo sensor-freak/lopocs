@@ -25,7 +25,7 @@ requirements = (
     'lazperf==1.2.1',
     'numpy==1.16.0',
     'pyproj==1.9.5.1',
-    'gpxpy'
+    'gpxpy>=1.3.5'
 )
 
 dev_requirements = (
