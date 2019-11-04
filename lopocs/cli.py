@@ -211,7 +211,7 @@ def check():
     # Lopocs version
     click.echo('LOPoCS version ... ', nl=False)
     green(__version__)
-    cmd_output('LOPoCS commit', 'cat lopocs-git-rev.txt')
+    cmd_output('LOPoCS commit', 'cat /code/lopocs-git-rev.txt')
 
     # pdal
     cmd_output('Pdal', 'pdal-config --version')
