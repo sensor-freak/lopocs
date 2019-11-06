@@ -212,6 +212,8 @@ class ThreeDTilesGetBoundsGeoJsonRoute(Resource):
     threedtiles_getbounds = reqparse.RequestParser()
     threedtiles_getbounds.add_argument('limit', type=int, required=False, default=4096,
                                        help='The maximum number of tiles to process. Use 0 to load all tiles (this may take some time!)')
+    threedtiles_getbounds.add_argument('bounds', type=str, required=False, default='',
+                                        help='The bounds of the area to generate the overview for. If not specified, all data is used.')
 
     @threedtiles_ns.expect(threedtiles_getbounds, validate=True)
     def get(self, resource):
@@ -219,6 +221,7 @@ class ThreeDTilesGetBoundsGeoJsonRoute(Resource):
         args = self.threedtiles_getbounds.parse_args()
         return ThreeDTilesGetBoundsGeoJson(
             table, column,
-            args.get('limit')
+            args.get('limit'),
+            args.get('bounds')
         )
 

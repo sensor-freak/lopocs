@@ -526,7 +526,7 @@ def ThreeDTilesGetBoundsGpx(table, column, limit):
     return response
 
 
-def ThreeDTilesGetBoundsGeoJson(table, column, limit):
+def ThreeDTilesGetBoundsGeoJson(table, column, limit, bounds):
     session = Session(table, column)
     bbox = session.boundingbox
     bbox['srs'] = session.srsid
@@ -552,8 +552,19 @@ def ThreeDTilesGetBoundsGeoJson(table, column, limit):
     featcoll.bbox = [ptmin[0], ptmin[1], ptmax[0], ptmax[1]]
     featcoll.features.append(outerbox)
 
-    limitclause = 'order by morton limit {}'.format(limit) if limit != 0 else ''
-    sql = 'select st_asgeojson(st_transform({column}::geometry, 4326)) from {table} {limitclause}'.format(**locals())
+    limitclause = 'limit {}'.format(limit) if limit != 0 else ''
+    whereclause = ''
+    if (bounds != ''):
+        box = list_from_str(bounds)
+        poly = boundingbox_to_polygon(box)
+        srid = session.srsid
+        whereclause = "where {column}::geometry && st_geomfromtext('polygon (({poly}))',{srid})".format(**locals())
+        sql = 'select st_asgeojson(st_transform(st_envelope({column}::geometry), 4326)) AS {column} FROM {table} {whereclause} ORDER BY morton {limitclause}'.format(**locals())
+        #sql = 'select st_asgeojson(st_transform({column}), 4326)) FROM {table}_coverage {whereclause} {limitclause}'.format(**locals())
+    else:
+        #sql = 'select st_asgeojson(st_transform({column}, 4326)) from {table}_coverage {whereclause} {limitclause}'.format(**locals())
+        sql = 'select * from {table}_coverage {whereclause} {limitclause}'.format(**locals())
+
     tiles = session.query(sql)
     for tile in tiles:
         tileobj = json.loads(tile[0])
