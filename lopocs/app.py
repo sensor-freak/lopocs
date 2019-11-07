@@ -214,6 +214,9 @@ class ThreeDTilesGetBoundsGeoJsonRoute(Resource):
                                        help='The maximum number of tiles to process. Use 0 to load all tiles (this may take some time!)')
     threedtiles_getbounds.add_argument('bounds', type=str, required=False, default='',
                                         help='The bounds of the area to generate the overview for. If not specified, all data is used.')
+    threedtiles_getbounds.add_argument('style', type=str, required=False, default='points',
+                                        choices=('points', 'polygons'),
+                                        help='Specify the geometry type to be generated for each tile.')
 
     @threedtiles_ns.expect(threedtiles_getbounds, validate=True)
     def get(self, resource):
@@ -222,6 +225,7 @@ class ThreeDTilesGetBoundsGeoJsonRoute(Resource):
         return ThreeDTilesGetBoundsGeoJson(
             table, column,
             args.get('limit'),
-            args.get('bounds')
+            args.get('bounds'),
+            args.get('style')
         )
 
