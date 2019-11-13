@@ -288,16 +288,21 @@ def sql_query(session, box, pcid, lod):
     sql_limit = " limit {} ".format(min(2**(4+lodlocal), 1024))
 
     if Config.USE_MORTON:
-        sql = ("select pc_union("
-               "pc_filterbetween( "
-               "pc_range({0}, {4}, {5}), 'Z', {6}, {7} )) from "
-               "(select {0} from {1} "
-               "where {0}::geometry && st_geomfromtext('polygon (({2}))',{3}) "
-               "order by morton {8})_;"
-               .format(session.column, session.table,
-                       poly, session.srsid, range_min, range_max,
-                       box[2] - 0.1, box[5] + 0.1, sql_limit,
-                       pcid))
+        sql = ("""
+                select pc_union(
+                    pc_filterbetween( 
+                        pc_range({0}, {4}, {5}),
+                        'Z', {6}, {7} )) 
+                from (
+                    select {0} 
+                    from {1} 
+                    where {0}::geometry && st_geomfromtext('polygon (({2}))',{3}) 
+                    order by morton {8}
+                    )_;
+                """.format(session.column, session.table,
+                           poly, session.srsid, range_min, range_max,
+                           box[2] - 0.1, box[5] + 0.1, sql_limit,
+                           pcid))
     else:
         sql = ("select pc_compress(pc_transform(pc_union("
                "pc_filterbetween( "
@@ -311,7 +316,7 @@ def sql_query(session, box, pcid, lod):
 
     if Config.DEBUG:
         print('LoD {0}, patch_size {1}, s/2^l {2}'.format(lod, patch_size, patch_size / (2 ** lod)))
-        print('Resulting SQL: ' + sql)
+        #print('Resulting SQL: ' + sql)
 
     return sql
 
@@ -578,17 +583,13 @@ def ThreeDTilesGetBoundsGeoJson(table, column, limit, bounds, style):
         whereclause = "where {column}::geometry && st_geomfromtext('polygon (({poly}))',{srid})".format(**locals())
         if style == 'polygons':
             sql = 'select st_asgeojson(st_transform(st_envelope({column}::geometry), 4326)) AS {column} FROM {table} {whereclause} ORDER BY morton {limitclause}'.format(**locals())
-            #sql = 'select st_asgeojson(st_transform({column}), 4326)) FROM {table}_coverage {whereclause} {limitclause}'.format(**locals())
         else:
-            sql = 'select st_asgeojson(st_transform((ST_DumpPoints({column}::geometry)).geom, 4326)) AS {column} FROM {table} {whereclause} ORDER BY morton {limitclause}'.format(**locals())
+            sql = 'select st_asgeojson(st_transform((st_dumppoints({column}::geometry)).geom, 4326)) AS {column} FROM {table} {whereclause} ORDER BY morton {limitclause}'.format(**locals())
     else:
         if style == 'polygons':
             sql = 'select st_asgeojson(st_transform(st_envelope({column}::geometry), 4326)) AS {column} FROM {table} {whereclause} ORDER BY morton {limitclause}'.format(**locals())
-            #sql = 'select st_asgeojson(st_transform({column}, 4326)) from {table}_coverage {whereclause} {limitclause}'.format(**locals())
-            #sql = 'select * from {table}_coverage {whereclause} {limitclause}'.format(**locals())
         else:
             sql = 'select st_asgeojson(st_transform((select (st_dumppoints(st_union({column}::geometry))) limit 1).geom, 4326)) AS {column} FROM {table} {whereclause} GROUP BY morton {limitclause}'.format(**locals())
-            #sql = 'select st_asgeojson(st_transform((ST_DumpPoints({column}::geometry)).geom, 4326)) AS {column} FROM {table} {whereclause} ORDER BY morton {limitclause}'.format(**locals())
 
     tiles = session.query(sql)
     for tile in tiles:
