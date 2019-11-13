@@ -19,14 +19,6 @@ from .database import Session
 from .t2pconverter import T2PConverter
 
 
-# These are the LoD levels to be generated when creating the tileset data
-LOD_MIN = 0
-LOD_MAX = 4
-
-# This value is used to calculate the LoD level at which all points from a patch are returned
-LOD_LEN = LOD_MAX + 1 - LOD_MIN
-
-
 def ThreeDTilesResources():
 
     """List available resources
@@ -336,7 +328,7 @@ def buildbox(bbox):
     return box
 
 
-def build_hierarchy_from_pg(session, baseurl, bbox):
+def build_hierarchy_from_pg(session, baseurl, bbox, lodmin, lodmax):
 
     stored_patches = session.lopocstable.filter_stored_output()
     pcid = stored_patches['pcid']
@@ -352,11 +344,12 @@ def build_hierarchy_from_pg(session, baseurl, bbox):
     bvol = {}
     bvol["box"] = buildbox(bbox)
 
-    lod_str = "lod={0}".format(LOD_MIN)
+    lod_str = "lod={0}".format(lodmin)
     bounds = ("bounds=[{0},{1},{2},{3},{4},{5}]"
               .format(bbox[0], bbox[1], bbox[2], bbox[3], bbox[4], bbox[5]))
     resource = "{}.{}".format(session.table, session.column)
 
+    # The URL uses the projected coordinates
     base_url = "{0}/3dtiles/{1}/read.pnts".format(baseurl, resource)
     url = (
         "{0}?{1}&{2}"
@@ -371,11 +364,12 @@ def build_hierarchy_from_pg(session, baseurl, bbox):
     root["geometricError"] = GEOMETRIC_ERROR / 20
     root["content"] = {"url": url}
 
-    lod = 1
+    lodmin = lodmin + 1
     children_list = []
     for bb in split_bbox(bbox):
         json_children = children(
-            session, baseurl, offsets, bb, lod, pcid, GEOMETRIC_ERROR / 40
+            session, baseurl, offsets, bb, lodmin, lodmax,
+            pcid, GEOMETRIC_ERROR / 40
         )
         if len(json_children):
             children_list.append(json_children)
@@ -440,7 +434,7 @@ def split_bbox(bbox):
     return bboxes
 
 
-def children(session, baseurl, offsets, bbox, lod, pcid, err):
+def children(session, baseurl, offsets, bbox, lod, lodmax, pcid, err):
 
     print("children(lod {}, {})".format(lod, bbox))
 
@@ -449,7 +443,7 @@ def children(session, baseurl, offsets, bbox, lod, pcid, err):
     pcpatch_wkb = session.query(sql)[0][0]
 
     json_me = {}
-    if lod <= LOD_MAX and pcpatch_wkb:
+    if lod <= lodmax and pcpatch_wkb:
         npoints = patch_numpoints(pcpatch_wkb)
         if npoints > 0:
             json_me = build_children_section(session, baseurl, offsets, bbox, err, lod)
@@ -457,10 +451,10 @@ def children(session, baseurl, offsets, bbox, lod, pcid, err):
         lod += 1
 
         children_list = []
-        if lod <= LOD_MAX:
+        if lod <= lodmax:
             for bb in split_bbox(bbox):
                 json_children = children(
-                    session, baseurl, offsets, bb, lod, pcid, err / 2
+                    session, baseurl, offsets, bb, lod, lodmax, pcid, err / 2
                 )
 
                 if len(json_children):

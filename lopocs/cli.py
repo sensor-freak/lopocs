@@ -443,8 +443,10 @@ def _update_table_indices( table, column, morton_size, srid, scale, offset):
 @click.option('--potree', 'usewith', help="build tileset for use with greyhound/potree", flag_value='potree')
 @click.option('--cesium', 'usewith', help="build tileset for use with 3dtiles/cesium ", flag_value='cesium')
 @click.option('--native', 'usewith', help="build tileset for use with 3dtiles/native SRS ", default=True, flag_value='native')
+@click.option('--lod-min', type=int, default=1, help='The LoD for the root level')
+@click.option('--lod-max', type=int, default=5, help='The LoD for the most detailed level')
 @cli.command()
-def tileset(table, column, server_url, work_dir, usewith):
+def tileset(table, column, server_url, work_dir, usewith, lod_min, lod_max):
     """
     (Re)build a tileset.json for a given table.
     TODO: Specify the LoDs for which to generate the tileset.
@@ -468,8 +470,6 @@ def tileset(table, column, server_url, work_dir, usewith):
     ]
 
     if usewith == 'potree':
-        lod_min = 0
-        lod_max = 5
         # add schema currently used by potree (version 1.5RC)
         Session.add_output_schema(
             table, column, scale[0], scale[1], scale[2],
@@ -495,7 +495,7 @@ def tileset(table, column, server_url, work_dir, usewith):
     if usewith == 'cesium':
         pending('Building tileset from database')
         hcy = threedtiles.build_hierarchy_from_pg(
-            lpsession, server_url, bbox
+            lpsession, server_url, bbox, lod_min, lod_max
         )
         ok()
 
@@ -509,7 +509,7 @@ def tileset(table, column, server_url, work_dir, usewith):
     if usewith == 'native':
         pending("Building 3Dtiles tileset (native)")
         hcy = threedtiles.build_hierarchy_from_pg(
-            lpsession, server_url, bbox
+            lpsession, server_url, bbox, lod_min, lod_max
         )
         ok()
 
