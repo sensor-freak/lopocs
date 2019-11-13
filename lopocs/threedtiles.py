@@ -5,6 +5,7 @@ import math
 
 import numpy as np
 from flask import make_response
+from pyproj import Proj, transform
 
 from py3dtiles.feature_table import (
     FeatureTableHeader, FeatureTableBody, FeatureTable
@@ -171,6 +172,14 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, format):
         # FIXME: compute color gradient based on elevation
         rgb_reduced = np.zeros((3, npoints), dtype=int)
         rgb = np.array(np.core.records.fromarrays(rgb_reduced, dtype=cdt))
+
+    # Now that we have absolute coordinates, we may convert them to a different SRID
+    print('Before ', points)
+    if session.srsid != 4978:
+        inProj = Proj(init='epsg:{0}'.format(session.srsid))
+        outProj = Proj(init='epsg:4326')
+        points['X'], points['Y'] = transform( inProj, outProj, points['X'], points['Y'], radians=True)
+    print('After ', points)
 
     quantized_points_r = np.c_[
         points['X'] * scales[0],
@@ -341,8 +350,17 @@ def build_hierarchy_from_pg(session, baseurl, bbox, lodmin, lodmax):
     if Config.DEBUG:
         print('tileset geometricErroc', tileset["geometricError"])
 
-    bvol = {}
-    bvol["box"] = buildbox(bbox)
+    inProj = Proj(init='epsg:{0}'.format(session.srsid))
+    outProj = Proj(init='epsg:4326')
+    bboxll = bbox[:]
+    bboxll[0], bboxll[1] = transform( inProj, outProj, bbox[0], bbox[1], radians=True)
+    bboxll[3], bboxll[4] = transform( inProj, outProj, bbox[3], bbox[4], radians=True)
+    print(bboxll)
+
+    # The bounding volume has to be specified in lat/lon
+    bvolll = {}
+    bvolll["box"] = buildbox(bboxll)
+    print(bvolll["box"])
 
     lod_str = "lod={0}".format(lodmin)
     bounds = ("bounds=[{0},{1},{2},{3},{4},{5}]"
@@ -360,7 +378,7 @@ def build_hierarchy_from_pg(session, baseurl, bbox, lodmin, lodmax):
 
     root = {}
     root["refine"] = "add"
-    root["boundingVolume"] = bvol
+    root["boundingVolume"] = bvolll
     root["geometricError"] = GEOMETRIC_ERROR / 20
     root["content"] = {"url": url}
 
@@ -369,7 +387,7 @@ def build_hierarchy_from_pg(session, baseurl, bbox, lodmin, lodmax):
     for bb in split_bbox(bbox):
         json_children = children(
             session, baseurl, offsets, bb, lodmin, lodmax,
-            pcid, GEOMETRIC_ERROR / 40
+            pcid, GEOMETRIC_ERROR / 40, inProj, outProj
         )
         if len(json_children):
             children_list.append(json_children)
@@ -382,7 +400,12 @@ def build_hierarchy_from_pg(session, baseurl, bbox, lodmin, lodmax):
     return json.dumps(tileset, indent=2, separators=(',', ': '))
 
 
-def build_children_section(session, baseurl, offsets, bbox, err, lod):
+def build_children_section(session, baseurl, offsets, bbox, err, lod, inProj, outProj):
+
+    # Convert bbox to lat/lon
+    bboxll = bbox[:]
+    bboxll[0], bboxll[1] = transform( inProj, outProj, bbox[0], bbox[1], radians=True)
+    bboxll[3], bboxll[4] = transform( inProj, outProj, bbox[3], bbox[4], radians=True)
 
     cjson = {}
 
@@ -395,7 +418,7 @@ def build_children_section(session, baseurl, offsets, bbox, err, lod):
     url = "{0}?{1}&{2}".format(baseurl, lod, bounds)
 
     bvol = {}
-    bvol["box"] = buildbox(bbox)
+    bvol["box"] = buildbox(bboxll)
 
     cjson["boundingVolume"] = bvol
     cjson["geometricError"] = err
@@ -446,7 +469,7 @@ def children(session, baseurl, offsets, bbox, lod, lodmax, pcid, err):
     if lod <= lodmax and pcpatch_wkb:
         npoints = patch_numpoints(pcpatch_wkb)
         if npoints > 0:
-            json_me = build_children_section(session, baseurl, offsets, bbox, err, lod)
+            json_me = build_children_section(session, baseurl, offsets, bbox, err, lod, inProj, outProj)
 
         lod += 1
 
