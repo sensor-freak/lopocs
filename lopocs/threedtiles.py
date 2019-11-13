@@ -566,8 +566,9 @@ def ThreeDTilesGetBoundsGeoJson(table, column, limit, bounds, style):
             sql = 'select st_asgeojson(st_transform((ST_DumpPoints({column}::geometry)).geom, 4326)) AS {column} FROM {table} {whereclause} ORDER BY morton {limitclause}'.format(**locals())
     else:
         if style == 'polygons':
+            sql = 'select st_asgeojson(st_transform(st_envelope({column}::geometry), 4326)) AS {column} FROM {table} {whereclause} ORDER BY morton {limitclause}'.format(**locals())
             #sql = 'select st_asgeojson(st_transform({column}, 4326)) from {table}_coverage {whereclause} {limitclause}'.format(**locals())
-            sql = 'select * from {table}_coverage {whereclause} {limitclause}'.format(**locals())
+            #sql = 'select * from {table}_coverage {whereclause} {limitclause}'.format(**locals())
         else:
             sql = 'select st_asgeojson(st_transform((select (st_dumppoints(st_union({column}::geometry))) limit 1).geom, 4326)) AS {column} FROM {table} {whereclause} GROUP BY morton {limitclause}'.format(**locals())
             #sql = 'select st_asgeojson(st_transform((ST_DumpPoints({column}::geometry)).geom, 4326)) AS {column} FROM {table} {whereclause} ORDER BY morton {limitclause}'.format(**locals())
