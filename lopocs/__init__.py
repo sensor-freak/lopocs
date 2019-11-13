@@ -4,8 +4,9 @@ import os
 import sys
 from pathlib import Path
 
-from flask import Flask, Blueprint
+from flask import Flask, Blueprint #, DispatcherMiddleware
 from yaml import load as yload
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from lopocs.app import api
 from lopocs.database import Session
@@ -49,8 +50,12 @@ def create_app(env='Defaults'):
     else:
         blueprint = Blueprint('api', __name__)
 
+    # Apply the ProxyFix to allow uage of the application behind a reverse proxy
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    #app.wsgi_app = DispatcherMiddleware(app, {'/lopocs': app.wsgi_app})
+
     api.init_app(blueprint)
-    app.register_blueprint(blueprint)
+    app.register_blueprint(blueprint, url_prefix='/lopocs')
     Session.init_app(app)
     Config.init(app.config)
 
