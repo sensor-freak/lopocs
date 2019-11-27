@@ -55,7 +55,7 @@ def create_app(env='Defaults'):
     #app.wsgi_app = DispatcherMiddleware(app, {'/lopocs': app.wsgi_app})
 
     api.init_app(blueprint)
-    app.register_blueprint(blueprint, url_prefix='/lopocs')
+    app.register_blueprint(blueprint)
     Session.init_app(app)
     Config.init(app.config)
 
