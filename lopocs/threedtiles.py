@@ -145,48 +145,50 @@ pdt = np.dtype([('X', np.float32), ('Y', np.float32), ('Z', np.float32)])
 def get_points(session, box, lod, offsets, pcid, scales, schema, format):
 
     sql = sql_query(session, box, pcid, lod)
-    pcpatch_wkb = session.query(sql)[0][0]
-    if not pcpatch_wkb:
-        # return an empy tile set if the query result is empty
-        return ['', 0]
+    pcpatch_result = session.query(sql)
 
-    points, npoints = read_uncompressed_patch(pcpatch_wkb, schema)
-    print( 'uncompressed patch lod {1}: {0} pts'.format(npoints, lod))
-    fields = points.dtype.fields.keys()
-#    print('Fields: {0}'.format(fields))
-    #for f in fields:
-    #    print('{0} - {1}'.format(f, points[f][0]))
+    result_pts = ''
+    result_cnt = 0
+    for patch in pcpatch_result:
+        pcpatch_wkb = patch[0]
+        if pcpatch_wkb:
+            points, npoints = read_uncompressed_patch(pcpatch_wkb, schema)
+            print( 'uncompressed patch lod {1}: {0} pts'.format(npoints, lod))
+            fields = points.dtype.fields.keys()
 
-    if ('Red' in fields) & ('Green' in fields) & ('Blue' in fields):
-        if max(points['Red']) > 255:
-            # normalize
-            rgb_reduced = np.c_[points['Red'] % 255, points['Green'] % 255, points['Blue'] % 255]
-            rgb = np.array(np.core.records.fromarrays(rgb_reduced.T, dtype=cdt))
-        else:
-            rgb = points[['Red', 'Green', 'Blue']].astype(cdt)
-    elif 'Classification' in fields:
-        rgb = classification_to_rgb(points)
-    else:
-        # No colors
-        # FIXME: compute color gradient based on elevation
-        rgb_reduced = np.zeros((3, npoints), dtype=int)
-        rgb = np.array(np.core.records.fromarrays(rgb_reduced, dtype=cdt))
+            if ('Red' in fields) & ('Green' in fields) & ('Blue' in fields):
+                if max(points['Red']) > 255:
+                    # normalize
+                    rgb_reduced = np.c_[points['Red'] % 255, points['Green'] % 255, points['Blue'] % 255]
+                    rgb = np.array(np.core.records.fromarrays(rgb_reduced.T, dtype=cdt))
+                else:
+                    rgb = points[['Red', 'Green', 'Blue']].astype(cdt)
+            elif 'Classification' in fields:
+                rgb = classification_to_rgb(points)
+            else:
+                # No colors
+                # FIXME: compute color gradient based on elevation
+                rgb_reduced = np.zeros((3, npoints), dtype=int)
+                rgb = np.array(np.core.records.fromarrays(rgb_reduced, dtype=cdt))
 
-    quantized_points_r = np.c_[
-        points['X'] * scales[0],
-        points['Y'] * scales[1],
-        points['Z'] * scales[2]
-    ]
-    #print('{0}'.format(quantized_points_r))
+            quantized_points_r = np.c_[
+                points['X'] * scales[0],
+                points['Y'] * scales[1],
+                points['Z'] * scales[2]
+            ]
 
-    quantized_points = np.array(np.core.records.fromarrays(quantized_points_r.T, dtype=pdt))
+            quantized_points = np.array(np.core.records.fromarrays(quantized_points_r.T, dtype=pdt))
 
-    results = ''
-    if format == 'pnts':
-        results = format_pnts(quantized_points, npoints, rgb, offsets)
-    if format == 'pts':
-        results = format_pts(quantized_points, npoints, rgb, offsets, points, fields)
-    return results
+            if format == 'pnts':
+                tile, cnt = format_pnts(quantized_points, npoints, rgb, offsets)
+                result_pts += tile
+                result_cnt += cnt
+            if format == 'pts':
+                tile, cnt = format_pts(quantized_points, npoints, rgb, offsets, points, fields)
+                result_pts += tile
+                result_cnt += cnt
+
+    return result_pts, result_cnt
 
 
 # Convert the points into simple PTS format
@@ -257,13 +259,9 @@ def sql_query(session, box, pcid, lod):
         range_min = 1
         range_max = maxppp
     else:
-        # FIXME: may skip some points if patch_size/lod_len is decimal
-        # we need to fix either here or at loading with the patch_size and lod bounds
-        #range_min = 1 #lod * int(patch_size / LOD_LEN) + 1
-        #range_max = (lod + 1) * int(patch_size / LOD_LEN)
-        if lodnp < patch_size:
+        if lodnp > 0:
             range_min = 1
-            range_max = max( int(patch_size / lodnp), 1)
+            range_max = max( int(maxppp / lodnp), 1)
         else:
             range_min = 1
             range_max = int(2**(lodlocal/2))
@@ -280,10 +278,12 @@ def sql_query(session, box, pcid, lod):
 
     if Config.USE_MORTON:
         sql = ("""
-                select pc_union(
+                select 
                     pc_filterbetween( 
-                        pc_range({0}, {4}, {5}),
-                        'Z', {6}, {7} )) 
+                        pc_intersection(
+                            pc_range({0}, {4}, {5}),
+                            st_geomfromtext('polygon (({2}))',{3})),
+                        'Z', {6}, {7} )
                 from (
                     select {0} 
                     from {1} 
