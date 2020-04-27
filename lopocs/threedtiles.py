@@ -2,6 +2,8 @@
 import json
 import geojson
 import math
+import multiprocessing as mp
+from functools import partial
 
 import numpy as np
 from flask import make_response
@@ -141,52 +143,79 @@ cdt = np.dtype([('Red', np.uint8), ('Green', np.uint8), ('Blue', np.uint8)])
 pdt = np.dtype([('X', np.float32), ('Y', np.float32), ('Z', np.float32)])
 
 
+# Get points from a single patch (returned from database) and convert them into 3DTiles format
+def get_points_from_patch(patch, schema, lod, scales, offsets, resultformat):
+    tile = ''
+    cnt = 0
+    pcpatch_wkb = patch[0]
+    if pcpatch_wkb:
+        points, npoints = read_uncompressed_patch(pcpatch_wkb, schema)
+        # print( 'uncompressed patch lod {1}: {0} pts'.format(npoints, lod))
+        fields = points.dtype.fields.keys()
+        # print('Fields: {0}'.format(fields))
+        # for f in fields:
+        #     print('{0} - {1}'.format(f, points[f][0]))
+
+        if ('Red' in fields) & ('Green' in fields) & ('Blue' in fields):
+            if max(points['Red']) > 255:
+                # normalize
+                rgb_reduced = np.c_[points['Red'] % 255, points['Green'] % 255, points['Blue'] % 255]
+                rgb = np.array(np.core.records.fromarrays(rgb_reduced.T, dtype=cdt))
+            else:
+                rgb = points[['Red', 'Green', 'Blue']].astype(cdt)
+        elif 'Classification' in fields:
+            rgb = classification_to_rgb(points)
+        else:
+            # No colors
+            # FIXME: compute color gradient based on elevation
+            rgb_reduced = np.zeros((3, npoints), dtype=int)
+            rgb = np.array(np.core.records.fromarrays(rgb_reduced, dtype=cdt))
+
+        quantized_points_r = np.c_[
+            points['X'] * scales[0],
+            points['Y'] * scales[1],
+            points['Z'] * scales[2]
+        ]
+        #print('{0}'.format(quantized_points_r))
+
+        quantized_points = np.array(np.core.records.fromarrays(quantized_points_r.T, dtype=pdt))
+
+        if resultformat == 'pnts':
+            tile, cnt = format_pnts(quantized_points, npoints, rgb, offsets)
+        if resultformat == 'pts':
+            tile, cnt = format_pts(quantized_points, npoints, rgb, offsets, points, fields)
+
+    return tile, cnt
+
+
 # Get points from the database and convert them into 3DTiles file format
-def get_points(session, box, lod, offsets, pcid, scales, schema, format):
+def get_points(session, box, lod, offsets, pcid, scales, schema, resultformat):
 
     sql = sql_query(session, box, pcid, lod)
     pcpatch_result = session.query(sql)
+    # print('-----------------')
+    # print('result type: {}, len {}'.format(type(pcpatch_result), len(pcpatch_result)))
+    # if len(pcpatch_result):
+    #     print('result[0] type: {}, len {}'.format(type(pcpatch_result[0]), len(pcpatch_result[0])))
+    # print('-----------------')
+
+    with mp.Pool(processes=mp.cpu_count()) as pool:
+        try:
+            wrapper = partial(get_points_from_patch, schema=schema, lod=lod, scales=scales, offsets=offsets, resultformat=resultformat)
+            work = pool.map_async(wrapper, pcpatch_result)
+            results = work.get()
+        finally:
+            pool.close()
+            pool.join()
+
 
     result_pts = ''
     result_cnt = 0
-    for patch in pcpatch_result:
-        pcpatch_wkb = patch[0]
-        if pcpatch_wkb:
-            points, npoints = read_uncompressed_patch(pcpatch_wkb, schema)
-            print( 'uncompressed patch lod {1}: {0} pts'.format(npoints, lod))
-            fields = points.dtype.fields.keys()
-
-            if ('Red' in fields) & ('Green' in fields) & ('Blue' in fields):
-                if max(points['Red']) > 255:
-                    # normalize
-                    rgb_reduced = np.c_[points['Red'] % 255, points['Green'] % 255, points['Blue'] % 255]
-                    rgb = np.array(np.core.records.fromarrays(rgb_reduced.T, dtype=cdt))
-                else:
-                    rgb = points[['Red', 'Green', 'Blue']].astype(cdt)
-            elif 'Classification' in fields:
-                rgb = classification_to_rgb(points)
-            else:
-                # No colors
-                # FIXME: compute color gradient based on elevation
-                rgb_reduced = np.zeros((3, npoints), dtype=int)
-                rgb = np.array(np.core.records.fromarrays(rgb_reduced, dtype=cdt))
-
-            quantized_points_r = np.c_[
-                points['X'] * scales[0],
-                points['Y'] * scales[1],
-                points['Z'] * scales[2]
-            ]
-
-            quantized_points = np.array(np.core.records.fromarrays(quantized_points_r.T, dtype=pdt))
-
-            if format == 'pnts':
-                tile, cnt = format_pnts(quantized_points, npoints, rgb, offsets)
-                result_pts += tile
-                result_cnt += cnt
-            if format == 'pts':
-                tile, cnt = format_pts(quantized_points, npoints, rgb, offsets, points, fields)
-                result_pts += tile
-                result_cnt += cnt
+    # for patch in pcpatch_result:
+    for tile, cnt in results:
+        # tile, cnt = get_points_from_patch(patch, schema, lod, scales, offsets, resultformat)
+        result_pts += tile
+        result_cnt += cnt
 
     return result_pts, result_cnt
 
