@@ -167,10 +167,12 @@ def GreyhoundHierarchy(table, column, bounds, depthBegin, depthEnd, scale, offse
         lod_max = Config.DEPTH - 1
 
     bbox = list_from_str(bounds)
+    print(bbox)
 
     if offset:
         # apply scale and offset if needed
         offset = list_from_str(offset)
+        print(offset)
         bbox[0] = bbox[0] * scale + offset[0]
         bbox[1] = bbox[1] * scale + offset[1]
         bbox[2] = bbox[2] * scale + offset[2]
