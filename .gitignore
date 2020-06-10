@@ -2,6 +2,7 @@ node_modules/
 lopocs.egg-info/
 dist/
 venv/
+venv37/
 conf/lopocs.uwsgi.yml
 conf/lopocs.yml
 outdir
