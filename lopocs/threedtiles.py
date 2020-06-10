@@ -169,7 +169,9 @@ def get_points_from_patch(patch, schema, lod, scales, offsets, resultformat):
             # No colors
             # FIXME: compute color gradient based on elevation
             rgb_reduced = np.zeros((3, npoints), dtype=int)
-            rgb = np.array(np.core.records.fromarrays(rgb_reduced, dtype=cdt))
+            # rgb = np.array(np.core.records.fromarrays(rgb_reduced, dtype=cdt))
+            # hint: Set rgb to None to avoid dumping of RGB values
+            rgb = None
 
         quantized_points_r = np.c_[
             points['X'] * scales[0],
@@ -247,14 +249,16 @@ def format_pts(quantized_points, npoints, rgb, offsets, points, fields):
 
 # Convert the points into a 3DTiles structure (apparently to be formatted as pnts)
 def format_pnts(quantized_points, npoints, rgb, offsets):
-    fth = FeatureTableHeader.from_dtype(
-        quantized_points.dtype, rgb.dtype, npoints
-    )
+    if rgb is not None:
+        fth = FeatureTableHeader.from_dtype(quantized_points.dtype, rgb.dtype, npoints)
+    else:
+        fth = FeatureTableHeader.from_dtype(quantized_points.dtype, None, npoints)
     ftb = FeatureTableBody()
     ftb.positions_itemsize = fth.positions_dtype.itemsize
-    ftb.colors_itemsize = fth.colors_dtype.itemsize
     ftb.positions_arr = quantized_points.view(np.uint8)
-    ftb.colors_arr = rgb.view(np.uint8)
+    if rgb is not None:
+        ftb.colors_itemsize = fth.colors_dtype.itemsize
+        ftb.colors_arr = rgb.view(np.uint8)
 
     ft = FeatureTable()
     ft.header = fth
