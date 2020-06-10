@@ -183,11 +183,11 @@ def get_points_from_patch(patch, schema, lod, scales, offsets, resultformat):
         quantized_points = np.array(np.core.records.fromarrays(quantized_points_r.T, dtype=pdt))
 
         if resultformat == 'pnts':
-            tile, cnt = format_pnts(quantized_points, npoints, rgb, offsets)
+            results = format_pnts(quantized_points, npoints, rgb, offsets)
         if resultformat == 'pts':
-            tile, cnt = format_pts(quantized_points, npoints, rgb, offsets, points, fields)
+            results = format_pts(quantized_points, npoints, rgb, offsets, points, fields)
 
-    return tile, cnt
+    return results
 
 
 # Get points from the database and convert them into 3DTiles file format
@@ -210,13 +210,24 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, resultformat):
             pool.close()
             pool.join()
 
-
-    result_pts = ''
+    result_pts = None
     result_cnt = 0
     # for patch in pcpatch_result:
-    for tile, cnt in results:
-        # tile, cnt = get_points_from_patch(patch, schema, lod, scales, offsets, resultformat)
-        result_pts += tile
+    for tile, cnt, header in results:
+        if result_pts is None:
+            if type(tile) is Pnts:
+                #print("Create bytearray")
+                #result_pts = Pnts()
+                result_pts = bytes()
+            else:
+                result_pts = header
+
+        if type(tile) is Pnts:
+            # TODO: Merge Pnts tiles, instead of concatenating the Pnts representations
+            result_pts += tile.to_array().tostring()
+        else:
+            result_pts += tile
+
         result_cnt += cnt
 
     return result_pts, result_cnt
@@ -226,8 +237,9 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, resultformat):
 def format_pts(quantized_points, npoints, rgb, offsets, points, fields):
     header1 = ['X', 'Y', 'Z', 'Red', 'Green', 'Blue'] if rgb is not None else ['X', 'Y', 'Z']
     header2 = [fname for fname in fields if (fname not in header1)]
-    tile = '"' + '" "'.join(header1 + header2) + '"\n'
+    header = '"' + '" "'.join(header1 + header2) + '"\n'
 
+    tile = ''
     for ptidx in range(npoints):
         if rgb is None:
             tile += '{0} {1} {2}' \
@@ -244,7 +256,7 @@ def format_pts(quantized_points, npoints, rgb, offsets, points, fields):
             tile += ' {}'.format( points[f][ptidx])
         tile += '\n'
 
-    return [tile, npoints]
+    return [tile, npoints, header]
 
 
 # Convert the points into a 3DTiles structure (apparently to be formatted as pnts)
@@ -273,7 +285,8 @@ def format_pnts(quantized_points, npoints, rgb, offsets):
     tile.header = th
     tile.body.feature_table.header.rtc = offsets
 
-    return [tile.to_array().tostring(), npoints]
+    # return [tile.to_array().tostring(), npoints, ""]
+    return [tile, npoints, ""]
 
 
 def sql_query(session, box, pcid, lod):
@@ -597,9 +610,17 @@ def ThreeDTilesGetBoundsGeoJson(table, column, limit, bounds, style):
             sql = 'select st_asgeojson(st_transform((st_dumppoints({column}::geometry)).geom, 4326)) AS {column} FROM {table} {whereclause} ORDER BY morton {limitclause}'.format(**locals())
     else:
         if style == 'polygons':
-            sql = 'select st_asgeojson(st_transform(st_envelope({column}::geometry), 4326)) AS {column} FROM {table} {whereclause} ORDER BY morton {limitclause}'.format(**locals())
+            sql = """
+                SELECT st_asgeojson(st_transform(pc_envelopeasbinary({column})::geometry, 4326)) AS {column}
+                FROM {table} {whereclause} 
+                ORDER BY morton {limitclause}
+                """.format(**locals())
         else:
-            sql = 'select st_asgeojson(st_transform((select (st_dumppoints(st_union({column}::geometry))) limit 1).geom, 4326)) AS {column} FROM {table} {whereclause} GROUP BY morton {limitclause}'.format(**locals())
+            sql = """
+                SELECT st_asgeojson(st_transform(st_centroid(pc_envelopeasbinary({column})::geometry), 4326)) AS {column}
+                FROM {table} {whereclause}
+                ORDER BY morton {limitclause}
+                """.format(**locals())
 
     tiles = session.query(sql)
     for tile in tiles:
