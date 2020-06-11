@@ -283,7 +283,8 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
     # Check if the target table already contains some values
     overwrite = 'false'
     try:
-        numpoints = Session(table, column).numpoints
+        # Assume that the estimated patch size can only be determined when the first patch contains some points
+        numpoints = Session( table, column).patch_size
     except LopocsException as e:
         pass
     if 'numpoints' in locals():
