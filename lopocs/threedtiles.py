@@ -148,6 +148,7 @@ def get_points_from_patch(patch, schema, lod, scales, offsets, resultformat):
     tile = ''
     cnt = 0
     pcpatch_wkb = patch[0]
+    results = [None, 0, None]
     if pcpatch_wkb:
         points, npoints = read_uncompressed_patch(pcpatch_wkb, schema)
         # print( 'uncompressed patch lod {1}: {0} pts'.format(npoints, lod))
@@ -214,21 +215,25 @@ def get_points(session, box, lod, offsets, pcid, scales, schema, resultformat):
     result_cnt = 0
     # for patch in pcpatch_result:
     for tile, cnt, header in results:
-        if result_pts is None:
+        if cnt != 0:
+            if result_pts is None:
+                if type(tile) is Pnts:
+                    #print("Create bytearray")
+                    #result_pts = Pnts()
+                    result_pts = bytes()
+                else:
+                    result_pts = header
+
             if type(tile) is Pnts:
-                #print("Create bytearray")
-                #result_pts = Pnts()
-                result_pts = bytes()
+                # TODO: Merge Pnts tiles, instead of concatenating the Pnts representations
+                result_pts += tile.to_array().tostring()
             else:
-                result_pts = header
+                result_pts += tile
 
-        if type(tile) is Pnts:
-            # TODO: Merge Pnts tiles, instead of concatenating the Pnts representations
-            result_pts += tile.to_array().tostring()
-        else:
-            result_pts += tile
+            result_cnt += cnt
 
-        result_cnt += cnt
+    if result_pts is None:
+        result_pts = bytes()
 
     return result_pts, result_cnt
 
@@ -491,7 +496,8 @@ def children(session, baseurl, offsets, bbox, lod, lodmax, pcid, err):
 
     # run sql
     sql = sql_query(session, bbox, pcid, lod)
-    pcpatch_wkb = session.query(sql)[0][0]
+    sqlres = session.query(sql)
+    pcpatch_wkb = sqlres[0][0] if len(sqlres) != 0 else None
 
     json_me = {}
     if lod <= lodmax and pcpatch_wkb:
