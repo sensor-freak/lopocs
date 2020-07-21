@@ -14,7 +14,7 @@ from lopocs.stats import Stats
 from lopocs.conf import Config
 
 # lopocs version
-__version__ = '1.20'
+__version__ = '1.22'
 
 
 def load_yaml_config(filename):

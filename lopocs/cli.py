@@ -328,7 +328,7 @@ def _load(filename, table, column, work_dir, capacity, usewith, srid=0, data_mod
         # projection or geocentric
         scale = (0.01, 0.01, 0.01)
 
-    if 'bounds' in summary:
+    if usewith != 'native' and 'bounds' in summary:
         # A bounding box is given in the summary, so apply some scaling...
         offset = ( summary['bounds']['minx'] + (summary['bounds']['maxx'] - summary['bounds']['minx']) / 2,
                    summary['bounds']['miny'] + (summary['bounds']['maxy'] - summary['bounds']['miny']) / 2,
